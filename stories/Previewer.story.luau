@@ -8,6 +8,7 @@ return Story.Create("Previewer", {
 	SinglePreview = false,
 	SelectFolder = true,
 	SelectConfiguration = false,
+	DirectUnsupported = false,
 	Tall = false,
 	Wide = false,
 }, function(fixture, props)
@@ -24,8 +25,14 @@ return Story.Create("Previewer", {
 		end
 		return instance
 	end, {})
+	local unsupported = React.useMemo(function()
+		local value = Instance.new("StringValue")
+		value.Name, value.Parent = "Metadata (direct selection only)", configuration
+		return value
+	end, {})
 	local selection: { Instance } = if props.controls.EmptySelection == true
 		then {}
+		elseif props.controls.DirectUnsupported == true then { configuration, unsupported }
 		elseif props.controls.SinglePreview == true then { fixture.selection[1] }
 		elseif props.controls.SelectConfiguration == true then { configuration }
 		elseif props.controls.SelectFolder == true then { fixture.root:FindFirstChild("Assets") :: Instance }

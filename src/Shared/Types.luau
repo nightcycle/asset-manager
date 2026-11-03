@@ -45,6 +45,7 @@ export type PreviewOptions = {
 	thumbnail: boolean?,
 	scaleMode: ScaleMode?,
 	autoPlay: boolean?,
+	audioEnabled: boolean?,
 }
 export type PreviewStatusKind = "info" | "loading" | "error"
 export type PreviewPalette = { text: Color3, accent: Color3, button: Color3, buttonText: Color3 }
@@ -53,7 +54,6 @@ export type PreviewContext = {
 	source: Instance,
 	options: PreviewOptions,
 	palette: PreviewPalette?,
-	play: (() -> ())?,
 	report: (string, PreviewStatusKind?) -> (),
 	onCleanup: (() -> ()) -> (),
 	isAlive: () -> boolean,

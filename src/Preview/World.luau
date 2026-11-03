@@ -140,6 +140,11 @@ function World.Mount(context: Types.PreviewContext, model: Model, framePoints: {
 					skyClone.Parent = viewport
 				end
 			end)
+		else
+			-- PBR maps need a cubemap even when the place has no explicit Sky.
+			local defaultSky = Instance.new("Sky")
+			defaultSky.Parent = viewport
+			skyClone = defaultSky
 		end
 	end
 	context.onCleanup(function()

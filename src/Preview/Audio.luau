@@ -1,6 +1,7 @@
 --!strict
 local RunService = game:GetService("RunService")
 local Types = require(script.Parent.Parent.Shared.Types)
+local Playback = require(script.Parent.Playback)
 local Audio = {}
 function Audio.Time(seconds: number): string
 	seconds = math.max(0, math.floor(seconds))
@@ -8,6 +9,21 @@ function Audio.Time(seconds: number): string
 end
 function Audio.Level(loudness: number): number
 	return math.sqrt(math.clamp(loudness / 1000, 0, 1))
+end
+function Audio.Record(samples: { number }, position: number, length: number, loudness: number)
+	if length <= 0 or #samples == 0 then
+		return
+	end
+	local index = math.clamp(math.floor(position / length * #samples) + 1, 1, #samples)
+	samples[index] = math.max(samples[index], Audio.Level(loudness))
+end
+function Audio.SetAudible(sound: Sound, audible: boolean, previous: boolean, volume: number): boolean
+	-- Keep the decoder running for PlaybackLoudness. The control only gates output.
+	if audible and not previous then
+		sound.TimePosition = 0
+	end
+	sound.Volume = if audible then volume else 0
+	return audible
 end
 function Audio.Clone(source: Sound): Sound
 	local sound = source:Clone()
@@ -32,6 +48,8 @@ function Audio.Mount(context: Types.PreviewContext)
 	local source = context.source
 	assert(source:IsA("Sound") and source.SoundId ~= "", "Set a SoundId to preview audio")
 	local sound = Audio.Clone(source)
+	local volume = sound.Volume
+	sound.Volume = 0
 	-- Edit-mode audio must live in the widget, not in the place's SoundService.
 	sound.Parent = context.host:FindFirstAncestorWhichIsA("PluginGui") or context.host
 	context.onCleanup(function()
@@ -55,12 +73,9 @@ function Audio.Mount(context: Types.PreviewContext)
 		item.Parent = canvas
 		return item
 	end
-	local title = label(source.Name)
-	title.Position, title.Size = UDim2.fromOffset(12, 8), UDim2.new(1, -24, 0, 22)
-	title.Font = Enum.Font.SourceSansSemibold
 	local chart = Instance.new("Frame")
 	chart.BackgroundTransparency = 1
-	chart.Position, chart.Size = UDim2.fromOffset(12, 36), UDim2.new(1, -24, 1, -100)
+	chart.Position, chart.Size = UDim2.fromOffset(12, 12), UDim2.new(1, -24, 1, -48)
 	chart.ClipsDescendants = true
 	chart.Parent = canvas
 	local bars: { Frame } = {}
@@ -74,49 +89,19 @@ function Audio.Mount(context: Types.PreviewContext)
 		bar.Parent = chart
 		table.insert(bars, bar)
 	end
-	local button = Instance.new("TextButton")
-	button.Position, button.Size = UDim2.new(0, 12, 1, -54), UDim2.fromOffset(64, 28)
-	button.BorderSizePixel = 0
-	button.TextSize, button.Font, button.Text = 14, Enum.Font.SourceSansSemibold, "Play"
-	button.Parent = canvas
 	local timeLabel = label("0:00 / --:--")
-	timeLabel.Position, timeLabel.Size = UDim2.new(0, 84, 1, -54), UDim2.new(1, -96, 0, 28)
-	timeLabel.TextXAlignment = Enum.TextXAlignment.Right
-	local state = label("Loading audio…")
-	state.Position, state.Size = UDim2.new(0, 12, 1, -24), UDim2.new(1, -24, 0, 18)
-	local progress = Instance.new("Frame")
-	progress.BorderSizePixel = 0
-	progress.Position, progress.Size = UDim2.new(0, 0, 1, -2), UDim2.fromOffset(0, 2)
-	progress.Parent = canvas
-	local autoPlay = context.options.autoPlay ~= false
-	local requested, started, loadFailed = autoPlay, false, false
+	timeLabel.Position, timeLabel.Size = UDim2.new(0, 12, 1, -28), UDim2.new(1, -24, 0, 24)
+	local audible, loadFailed, reportedUnavailable = false, false, false
 	local elapsed, sampleTime = 0, 0
 	local function syncPlayback()
-		if requested and context.options.playing and sound.IsLoaded then
+		if sound.IsLoaded then
+			audible = Audio.SetAudible(sound, Playback.Audible(context.options), audible, volume)
 			if not sound.IsPlaying then
-				if started then
-					sound:Resume()
-				else
-					sound:Play()
-					started = true
-				end
+				sound:Play()
 			end
-		elseif sound.IsPlaying then
-			sound:Pause()
 		end
 	end
-	local clicked = button.Activated:Connect(function()
-		requested = not requested
-		if requested and context.play then
-			context.play()
-		end
-		syncPlayback()
-	end)
 	local heartbeat = RunService.Heartbeat:Connect(function(dt)
-		if autoPlay ~= (context.options.autoPlay ~= false) then
-			autoPlay = context.options.autoPlay ~= false
-			requested = autoPlay
-		end
 		elapsed += dt
 		sampleTime += dt
 		syncPlayback()
@@ -124,9 +109,8 @@ function Audio.Mount(context: Types.PreviewContext)
 			return
 		end
 		sampleTime %= 1 / 30
-		local loudness = if sound.IsPlaying then sound.PlaybackLoudness else 0
-		table.remove(samples, 1)
-		table.insert(samples, Audio.Level(loudness))
+		local loudness = sound.PlaybackLoudness
+		Audio.Record(samples, sound.TimePosition, sound.TimeLength, loudness)
 		local theme = settings().Studio.Theme
 		local textColor = if context.palette
 			then context.palette.text
@@ -137,32 +121,22 @@ function Audio.Mount(context: Types.PreviewContext)
 		for index, bar in bars do
 			bar.Size = UDim2.new(1 / #bars, -2, math.max(0.02, samples[index] * 0.95), 0)
 			bar.BackgroundColor3 = accent
+			bar.BackgroundTransparency = if audible then 0 else 0.25
 		end
-		for _, item in { title, timeLabel, state } do
-			item.TextColor3 = textColor
-		end
-		button.TextColor3 = if context.palette
-			then context.palette.buttonText
-			else theme:GetColor(Enum.StudioStyleGuideColor.ButtonText)
-		button.BackgroundColor3 = if context.palette
-			then context.palette.button
-			else theme:GetColor(Enum.StudioStyleGuideColor.Button)
-		button.Text = if requested then "Pause" else "Play"
+		timeLabel.TextColor3 = textColor
 		local length = sound.TimeLength
 		timeLabel.Text = Audio.Time(sound.TimePosition)
 			.. " / "
 			.. (if sound.IsLoaded then Audio.Time(length) else "--:--")
-		progress.BackgroundColor3 = accent
-		progress.Size = UDim2.new(if length > 0 then math.clamp(sound.TimePosition / length, 0, 1) else 0, 0, 0, 2)
-		state.Text = if not sound.IsLoaded
-			then (if loadFailed or elapsed > 15 then "Audio unavailable · check asset access" else "Loading audio…")
-			elseif not context.options.playing then "Playback paused in preview options"
-			elseif sound.IsPlaying then `Loudness {math.floor(loudness)} · looping`
-			elseif requested then "Starting audio…"
-			else "Click Play to preview"
+		if not sound.IsLoaded and (loadFailed or elapsed > 15) and not reportedUnavailable then
+			reportedUnavailable = true
+			context.report("Audio unavailable · check asset access", "error")
+		elseif sound.IsLoaded and reportedUnavailable then
+			reportedUnavailable = false
+			context.report("")
+		end
 	end)
 	context.onCleanup(function()
-		clicked:Disconnect()
 		heartbeat:Disconnect()
 	end)
 	task.spawn(function()
@@ -173,6 +147,6 @@ function Audio.Mount(context: Types.PreviewContext)
 			loadFailed = not ok
 		end
 	end)
-	context.report("Audio preview · live loudness history")
+	context.report("")
 end
 return Audio

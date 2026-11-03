@@ -1,6 +1,7 @@
 --!strict
 local Selection = {}
 local Hierarchy = require(script.Parent.Parent.Shared.Hierarchy)
+local Registry = require(script.Parent.Registry)
 
 -- Only organizational containers expand; a Model/Tool/Accessory remains one asset.
 -- Return the visited containers so the UI can watch their immediate child lists.
@@ -8,8 +9,10 @@ function Selection.Expand(selected: { Instance }): ({ Instance }, { Instance })
 	local sources: { Instance } = {}
 	local containers: { Instance } = {}
 	local visited: { [Instance]: boolean } = {}
+	local direct: { [Instance]: boolean } = {}
 	local stack: { Instance } = {}
 	for index = #selected, 1, -1 do
+		direct[selected[index]] = true
 		table.insert(stack, selected[index])
 	end
 	while #stack > 0 do
@@ -24,7 +27,9 @@ function Selection.Expand(selected: { Instance }): ({ Instance }, { Instance })
 			for index = #children, 1, -1 do
 				table.insert(stack, children[index])
 			end
-		else
+		elseif direct[instance] or Registry.Resolve(instance).id ~= "fallback" then
+			-- Preserve explicit selections even when their container was visited first.
+			-- Expanded children need a visual renderer; details-only tiles add noise.
 			table.insert(sources, instance)
 		end
 	end

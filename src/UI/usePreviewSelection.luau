@@ -1,6 +1,7 @@
 --!strict
 local React = require(script.Parent.Parent.Parent.Packages.React)
 local Selection = require(script.Parent.Parent.Preview.Selection)
+local Hierarchy = require(script.Parent.Parent.Shared.Hierarchy)
 
 return function(selected: { Instance }): { Instance }
 	local revision, setRevision = React.useState(0)
@@ -11,8 +12,8 @@ return function(selected: { Instance }): { Instance }
 	React.useLayoutEffect(function()
 		local alive, pending = true, false
 		local connections: { RBXScriptConnection } = {}
-		local function changed()
-			if pending then
+		local function changed(child: Instance)
+			if pending or Hierarchy.IsExcluded(child) then
 				return
 			end
 			pending = true

@@ -11,6 +11,13 @@ function Hierarchy.IsFolder(instance: Instance): boolean
 		or instance:IsA("Configuration")
 end
 function Hierarchy.IsExcluded(instance: Instance): boolean
-	return instance:IsA("CoreGui") or instance:FindFirstAncestorOfClass("CoreGui") ~= nil
+	local cursor: Instance? = instance
+	while cursor do
+		if cursor:IsA("CoreGui") or cursor:GetAttribute("_AssetToolsPreview") == true then
+			return true
+		end
+		cursor = cursor.Parent
+	end
+	return false
 end
 return Hierarchy

@@ -57,15 +57,6 @@ return function(props: Props): React.ReactElement
 				end
 			end,
 		}),
-		Playback = e(UI.Button, {
-			text = if props.options.playing then "Pause playback" else "Resume playback",
-			order = 4,
-			click = function()
-				local updated = table.clone(props.options)
-				updated.playing = not updated.playing
-				props.changeOptions(updated)
-			end,
-		}),
 		Count = e(
 			UI.Text,
 			{ text = `{props.capacity} previews per page at this window size`, wrapped = true, height = 40, order = 5 }

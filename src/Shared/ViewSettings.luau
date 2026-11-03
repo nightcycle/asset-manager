@@ -4,7 +4,7 @@ export type Settings = { minItems: number, maxItems: number, autoPlay: boolean, 
 function ViewSettings.Default(organizer: boolean): Settings
 	return {
 		minItems = if organizer then 8 else 1,
-		maxItems = if organizer then 100 else 25,
+		maxItems = if organizer then 100 else 16,
 		autoPlay = true,
 		viewMode = "List",
 	}

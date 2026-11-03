@@ -12,7 +12,7 @@ function Animation.Mount(context: Types.PreviewContext)
 	context.report("Loading animation poses…", "loading")
 	local source = context.source
 	local clip: Instance
-	if source:IsA("AnimationClip") or source:IsA("Keyframe") then
+	if source:IsA("AnimationClip") or source:IsA("Keyframe") or source:IsA("Pose") then
 		local clone = source:Clone()
 		assert(clone, "Animation clip is not Archivable")
 		clip = clone

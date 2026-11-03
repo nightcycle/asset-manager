@@ -6,6 +6,8 @@ local Types = require(script.Parent.Parent.Shared.Types)
 local Cleanup = require(script.Parent.Parent.Shared.Cleanup)
 local Registry = require(script.Parent.Parent.Preview.Registry)
 local Icons = require(script.Parent.Icons)
+local Playback = require(script.Parent.Parent.Preview.Playback)
+local PlaybackOverlay = require(script.Parent.PlaybackOverlay)
 local e = React.createElement
 export type Props = {
 	source: Instance,
@@ -21,19 +23,25 @@ export type Props = {
 return function(props: Props): React.ReactElement
 	local theme = Studio.useTheme()
 	local host = React.useRef(nil :: Frame?)
+	local hovered, setHovered = React.useState(false)
+	local playing, setPlaying = React.useState(props.options.playing)
+	React.useEffect(function()
+		setPlaying(props.options.playing)
+	end, { props.source, props.options.playing } :: { unknown })
 	local liveOptions = React.useRef(table.clone(props.options))
-	local playCallback = React.useRef(props.onPlay)
-	playCallback.current = props.onPlay
-	liveOptions.current.playing = props.options.playing
+	liveOptions.current.playing = playing
 	liveOptions.current.mirrorLighting = props.options.mirrorLighting
 	liveOptions.current.background = props.options.background
 	liveOptions.current.scaleMode = props.options.scaleMode
 	liveOptions.current.autoPlay = props.options.autoPlay
+	liveOptions.current.audioEnabled = props.options.audioEnabled
 	local status, setStatus =
 		React.useState({ text = "", kind = "info" } :: { text: string, kind: Types.PreviewStatusKind })
 	local revision, setRevision = React.useState(0)
 	local source = props.source
 	local renderer = Registry.Resolve(source)
+	local minimal = props.minimal or renderer.id == "sound"
+	local active: boolean = playing and (not source:IsA("Sound") or props.options.audioEnabled ~= false)
 	local background = if props.options.background == "Dark"
 		then Color3.fromRGB(28, 30, 34)
 		elseif props.options.background == "Light" then Color3.fromRGB(238, 240, 243)
@@ -103,11 +111,6 @@ return function(props: Props): React.ReactElement
 					source = source,
 					options = liveOptions.current,
 					palette = palette.current,
-					play = function()
-						if playCallback.current then
-							playCallback.current()
-						end
-					end,
 					report = function(text, kind)
 						if alive then
 							setStatus({ text = text, kind = kind or "info" })
@@ -142,7 +145,21 @@ return function(props: Props): React.ReactElement
 		BorderColor3 = theme:GetColor(Enum.StudioStyleGuideColor.Border),
 		ClipsDescendants = true,
 	}, {
-		Title = if props.minimal
+		Playback = if not props.thumbnail
+				and Playback.HasControls(source)
+				and (hovered or not active or source:IsA("Sound"))
+			then e(PlaybackOverlay, {
+				playing = active :: boolean,
+				subtle = renderer.id == "sound",
+				click = function()
+					setPlaying(not active)
+					if not active and props.onPlay then
+						props.onPlay()
+					end
+				end,
+			})
+			else nil,
+		Title = if minimal
 			then nil
 			else e("TextLabel", {
 				Size = UDim2.new(1, -16, 0, 26),
@@ -157,11 +174,17 @@ return function(props: Props): React.ReactElement
 			}),
 		Host = e("Frame", {
 			ref = host,
-			Position = if props.minimal then UDim2.new() else UDim2.fromOffset(1, 26),
-			Size = if props.minimal then UDim2.fromScale(1, 1) else UDim2.new(1, -2, 1, -66),
+			Position = if minimal then UDim2.new() else UDim2.fromOffset(1, 26),
+			Size = if minimal then UDim2.fromScale(1, 1) else UDim2.new(1, -2, 1, -66),
 			BackgroundColor3 = background,
 			BorderSizePixel = 0,
 			ClipsDescendants = true,
+			[React.Event.MouseEnter] = function()
+				setHovered(true)
+			end,
+			[React.Event.MouseLeave] = function()
+				setHovered(false)
+			end,
 		}),
 		Fallback = if props.thumbnail and status.kind ~= "info"
 			then e("Frame", {
@@ -175,12 +198,12 @@ return function(props: Props): React.ReactElement
 				),
 			})
 			else nil,
-		Status = if props.thumbnail or (props.minimal and status.kind == "info")
+		Status = if props.thumbnail or (minimal and status.kind == "info")
 			then nil
 			else e("TextLabel", {
 				Position = UDim2.new(0, 8, 1, -39),
 				Size = UDim2.new(1, -16, 0, 38),
-				BackgroundTransparency = if props.minimal then 0.1 else 1,
+				BackgroundTransparency = if minimal then 0.1 else 1,
 				BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainBackground),
 				BorderSizePixel = 0,
 				ZIndex = 2,

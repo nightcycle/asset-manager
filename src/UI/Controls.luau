@@ -163,7 +163,7 @@ function Controls.Column(props: { children: React.ReactNode, order: number? }): 
 	})
 end
 function Controls.Scroll(
-	props: { children: React.ReactNode, gridColumns: number?, cellHeight: number? }
+	props: { children: React.ReactNode, gridColumns: number?, cellHeight: number?, cellWidth: number? }
 ): React.ReactElement
 	local theme = Studio.useTheme()
 	return e("ScrollingFrame", {
@@ -186,12 +186,14 @@ function Controls.Scroll(
 			then e("UIGridLayout", {
 				SortOrder = Enum.SortOrder.LayoutOrder,
 				CellPadding = UDim2.fromOffset(8, 8),
-				CellSize = UDim2.new(
-					1 / props.gridColumns,
-					-8 * (props.gridColumns - 1) / props.gridColumns,
-					0,
-					props.cellHeight or 184
-				),
+				CellSize = if props.cellWidth
+					then UDim2.fromOffset(props.cellWidth, props.cellHeight or 184)
+					else UDim2.new(
+						1 / props.gridColumns,
+						-8 * (props.gridColumns - 1) / props.gridColumns,
+						0,
+						props.cellHeight or 184
+					),
 				FillDirectionMaxCells = props.gridColumns,
 			})
 			else e("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }),

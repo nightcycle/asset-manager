@@ -6,7 +6,7 @@ return Story.Create("Images, audio, and R15", {
 	LightTheme = false,
 	ImageId = "rbxasset://textures/particles/sparkles_main.dds",
 	AnimationId = "",
-	SoundId = "rbxasset://sounds/electronicpingshort.wav",
+	SoundId = "rbxasset://sounds/impact_water.mp3",
 	ShowAudio = true,
 	Flipbook = false,
 }, function(fixture, props)

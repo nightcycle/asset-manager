@@ -12,7 +12,7 @@ return function(props: Props): React.ReactElement
 		then "volume_up"
 		elseif renderer == "animation" then "movie"
 		elseif renderer == "image" or renderer == "particles" then "image"
-		elseif renderer == "geometry" or renderer == "clothing" then "view_in_ar"
+		elseif renderer == "geometry" or renderer == "clothing" or renderer == "surface" then "view_in_ar"
 		else "insert_drive_file"
 	local fallback = e(Icons.Image, { name = icon, size = UDim2.fromScale(1, 1) })
 	return e("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true }, {

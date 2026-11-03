@@ -7,6 +7,7 @@ local Gui = require(script.Parent.Gui)
 local Animation = require(script.Parent.Animation)
 local Audio = require(script.Parent.Audio)
 local Clothing = require(script.Parent.Clothing)
+local Surface = require(script.Parent.Surface)
 local Registry = {}
 local renderers: { Types.Renderer } = {}
 function Registry.Register(renderer: Types.Renderer, priority: number?)
@@ -36,7 +37,7 @@ Registry.Register({
 	id = "animation",
 	label = "Animation / pose",
 	supports = function(i)
-		return i:IsA("Animation") or i:IsA("AnimationClip") or i:IsA("Keyframe")
+		return i:IsA("Animation") or i:IsA("AnimationClip") or i:IsA("Keyframe") or i:IsA("Pose")
 	end,
 	mount = Animation.Mount,
 })
@@ -57,11 +58,18 @@ Registry.Register({
 	mount = Particles.Mount,
 })
 Registry.Register({
+	id = "surface",
+	label = "Material / surface",
+	supports = function(i)
+		return i:IsA("MaterialVariant") or i:IsA("SurfaceAppearance") or i:IsA("Decal")
+	end,
+	mount = Surface.Mount,
+})
+Registry.Register({
 	id = "image",
 	label = "Image / flipbook",
 	supports = function(i)
-		return i:IsA("Decal")
-			or ((i:IsA("ImageLabel") or i:IsA("ImageButton")) and i:GetAttribute("Preview_FlipbookColumns") ~= nil)
+		return (i:IsA("ImageLabel") or i:IsA("ImageButton")) and i:GetAttribute("Preview_FlipbookColumns") ~= nil
 	end,
 	mount = Image.Mount,
 })

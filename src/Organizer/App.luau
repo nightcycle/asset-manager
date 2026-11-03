@@ -546,7 +546,18 @@ return function(props: Props): React.ReactElement
 					OnChanged = setSearch,
 					PlaceholderText = "Search this folder…",
 					ClearTextOnFocus = false,
-					Size = UDim2.new(1, -46, 1, 0),
+					Size = UDim2.new(1, -130, 1, 0),
+				}),
+				ViewMode = e(Icons.Button, {
+					name = if grid then "view_list" else "grid_view",
+					text = if grid then "List" else "Grid",
+					position = UDim2.new(1, -122, 0, 0),
+					size = UDim2.fromOffset(76, 28),
+					click = function()
+						local updated = table.clone(settings)
+						updated.viewMode = if grid then "List" else "Grid"
+						changeSettings(updated)
+					end,
 				}),
 				Menu = e(Icons.Button, {
 					name = "menu",
@@ -610,6 +621,7 @@ return function(props: Props): React.ReactElement
 			Rows = e(UI.Scroll, {
 				key = scope .. ":" .. tostring(page) .. settings.viewMode,
 				gridColumns = if grid and #records > 0 then gridColumns else nil,
+				cellWidth = math.max(1, math.floor((size.X - 26 - 8 * (gridColumns - 1)) / gridColumns)),
 				cellHeight = gridHeight,
 			}, resultRows),
 		}),

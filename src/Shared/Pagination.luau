@@ -1,5 +1,9 @@
 --!strict
 local Pagination = {}
+function Pagination.PreviewCapacity(width: number, height: number, minimum: number, maximum: number): number
+	-- Roughly 100 px square slots; a normal dock can comfortably render sixteen.
+	return math.clamp(math.floor(math.max(width, 1) * math.max(height, 1) / 10000 + 0.5), minimum, maximum)
+end
 function Pagination.Capacity(
 	width: number,
 	height: number,
@@ -21,18 +25,15 @@ end
 function Pagination.Grid(count: number, width: number, height: number): (number, number)
 	count = math.max(1, count)
 	local aspect = math.max(width, 1) / math.max(height, 1)
-	-- Extreme panels use a list along their long axis.
-	if aspect <= 0.5 then
-		return 1, count
-	end
-	if aspect >= 2 then
-		return count, 1
-	end
 	local bestColumns, bestRows, bestScore = 1, count, math.huge
 	for columns = 1, count do
 		local rows = math.ceil(count / columns)
-		local score = math.abs(math.log(aspect * rows / columns)) + (columns * rows - count) / count
-		if score < bestScore then
+		local score = math.abs(math.log(aspect * rows / columns))
+		-- Squareness takes priority; only use empty slots to break a tie.
+		if
+			score < bestScore - 0.000001
+			or (math.abs(score - bestScore) < 0.000001 and columns * rows < bestColumns * bestRows)
+		then
 			bestColumns, bestRows, bestScore = columns, rows, score
 		end
 	end

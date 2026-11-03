@@ -221,8 +221,15 @@ local animation = Instance.new("Animation")
 animation.Name, animation.AnimationId = "Animation_R15_Idle", "rbxassetid://507766388"
 example(animation, "Animation")
 local sound = Instance.new("Sound")
-sound.Name, sound.SoundId, sound.Volume = "Audio_ElectronicPing", "rbxasset://sounds/electronicpingshort.wav", 0.25
+sound.Name, sound.SoundId, sound.Volume = "Audio_ImpactWater", "rbxasset://sounds/impact_water.mp3", 0.25
 example(sound, "Audio")
+local soundExamples: { [string]: string } =
+	{ Audio_Explosion = "impact_explosion_03.mp3", Audio_Swimming = "action_swim.mp3" }
+for name, uri in soundExamples do
+	local other = Instance.new("Sound")
+	other.Name, other.SoundId, other.Volume = name, "rbxasset://sounds/" .. uri, 0.25
+	example(other, "Audio")
+end
 local gui = Instance.new("TextLabel")
 gui.Name, gui.Text, gui.BackgroundColor3 = "GUI_Label", "A GUI asset preview", Color3.fromRGB(44, 64, 90)
 gui.TextColor3, gui.TextSize, gui.Size = Color3.fromRGB(240, 246, 255), 24, UDim2.fromOffset(240, 80)
@@ -268,6 +275,10 @@ local poseExample = bones:GetChildren()[2]:Clone()
 assert(poseExample)
 poseExample.Name = "Keyframe_StandalonePose"
 example(poseExample, "Animation")
+local branch = poseExample:GetChildren()[1]:Clone()
+assert(branch)
+branch.Name = "Pose_StandaloneBranch"
+example(branch, "Animation")
 local graphic = Instance.new("ShirtGraphic")
 graphic.Name, graphic.Graphic = "Clothing_TShirt", image.Image
 example(graphic, "Geometry")
@@ -275,6 +286,22 @@ local shirt, pants = Instance.new("Shirt"), Instance.new("Pants")
 shirt.Name, pants.Name = "Clothing_Shirt_SetTemplate", "Clothing_Pants_SetTemplate"
 example(shirt, "Geometry")
 example(pants, "Geometry")
+for _, organic in { true, false } do
+	local material = Instance.new("MaterialVariant")
+	material.Name = if organic then "Material_OrganicSphere" else "Material_RegularCube"
+	material.BaseMaterial = if organic then Enum.Material.Grass else Enum.Material.Brick
+	material.MaterialPattern = if organic then Enum.MaterialPattern.Organic else Enum.MaterialPattern.Regular
+	material.ColorMap = "rbxasset://textures/ui/LegacyRbxGui/brickSide.png"
+	material.StudsPerTile = 2
+	example(material, "Geometry")
+end
+local appearance = Instance.new("SurfaceAppearance")
+appearance.Name, appearance.ColorMap = "SurfaceAppearance_Mesh", "rbxasset://textures/ui/LegacyRbxGui/brickSide.png"
+example(appearance, "Geometry")
+local texture = Instance.new("Texture")
+texture.Name, texture.Texture = "Texture_TiledMesh", appearance.ColorMap
+texture.StudsPerTileU, texture.StudsPerTileV = 1, 1
+example(texture, "Image")
 local fallback = Instance.new("StringValue")
 fallback.Name = "Fallback_StringValue"
 example(fallback, "Other")
@@ -285,7 +312,7 @@ local descriptions: { [string]: string } = {
 	Geometry = "A three-dimensional prop or model",
 	Image = "A still image, decal, or sprite sheet",
 	FX = "An animated particle effect",
-	Animation = "An animation clip for an R15 rig",
+	Animation = "An animation clip or pose for an R15 rig or bone stand-in",
 	Audio = "A sound asset",
 	GUI = "A user interface asset",
 	Other = "An instance used to test fallback previews",

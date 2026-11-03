@@ -51,7 +51,7 @@ function Sampler.Compile(clip: Instance): Clip
 	local length = 0
 	local channels: { [string]: (number) -> CFrame } = {}
 	local nodesById: { [string]: Node } = {}
-	local function nodeFor(instance: Instance, boundary: Instance): Node
+	local function nodeFor(instance: Instance, boundary: Instance?): Node
 		local segments: { string } = {}
 		local cursor: Instance? = instance
 		while cursor and cursor ~= boundary do
@@ -74,7 +74,19 @@ function Sampler.Compile(clip: Instance): Clip
 		nodesById[id] = node
 		return node
 	end
-	if clip:IsA("KeyframeSequence") or clip:IsA("Keyframe") then
+	if clip:IsA("Pose") then
+		local poses = clip:GetDescendants()
+		table.insert(poses, 1, clip)
+		for _, pose in poses do
+			if pose:IsA("Pose") then
+				local node = nodeFor(pose, clip.Parent)
+				local transform = CFrame.identity:Lerp(pose.CFrame, math.clamp(pose.Weight, 0, 1))
+				node.sample = function()
+					return transform
+				end
+			end
+		end
+	elseif clip:IsA("KeyframeSequence") or clip:IsA("Keyframe") then
 		local tracks: { [string]: { Key } } = {}
 		local keyframes: { Instance } = if clip:IsA("Keyframe") then { clip } else clip:GetChildren()
 		for _, keyframe in keyframes do

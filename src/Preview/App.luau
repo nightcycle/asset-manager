@@ -11,6 +11,7 @@ local usePreviewSelection = require(script.Parent.Parent.UI.usePreviewSelection)
 local Types = require(script.Parent.Parent.Shared.Types)
 local Pagination = require(script.Parent.Parent.Shared.Pagination)
 local Settings = require(script.Parent.Parent.Shared.ViewSettings)
+local Playback = require(script.Parent.Playback)
 local e = React.createElement
 export type Props = {
 	selection: { Instance }?,
@@ -27,6 +28,7 @@ return function(props: Props): React.ReactElement
 	local selected = useSelection(props.selection)
 	local selection = usePreviewSelection(selected)
 	local page, setPage = React.useState(1)
+	local preferredSound, setPreferredSound = React.useState(nil :: Instance?)
 	local settings, setSettings = React.useState(props.initialSettings or Settings.Default(false))
 	local options, setOptions = React.useState({
 		background = props.initialBackground or "Studio",
@@ -38,17 +40,18 @@ return function(props: Props): React.ReactElement
 	local menuOpen, setMenuOpen = React.useState(false)
 	local hovered, setHovered = React.useState(false)
 	local size, setSize = React.useState(Vector2.new(500, 400))
-	local capacity =
-		Pagination.Capacity(size.X, math.max(1, size.Y - 40), 180, 180, settings.minItems, settings.maxItems)
+	local capacity = Pagination.PreviewCapacity(size.X, math.max(1, size.Y - 40), settings.minItems, settings.maxItems)
 	local previousCapacity = React.useRef(capacity)
 	local current, pages, first, last = Pagination.Page(#selection, page, capacity)
 	local count = math.max(0, last - first + 1)
 	local columns, rows = Pagination.Grid(count, size.X, size.Y - (if pages > 1 then 40 else 0))
 	local gutter = if count > 1 then 2 else 0
+	local audibleSound = Playback.Sound(selection, first, last, preferredSound)
 	React.useEffect(function()
 		setPage(1)
 	end, { selection } :: { unknown })
 	React.useEffect(function()
+		setPreferredSound(nil)
 		setOptions(function(previous)
 			local updated = table.clone(previous)
 			updated.playing = updated.autoPlay ~= false
@@ -65,11 +68,17 @@ return function(props: Props): React.ReactElement
 	local cards: UI.Children = {}
 	for index = first, last do
 		local offset = index - first
+		local source = selection[index]
+		local cardOptions = table.clone(options)
+		cardOptions.audioEnabled = source == audibleSound
 		cards[tostring(index)] = e(PreviewCard, {
-			source = selection[index],
-			options = options,
+			source = source,
+			options = cardOptions,
 			minimal = true,
 			onPlay = function()
+				if source:IsA("Sound") then
+					setPreferredSound(source)
+				end
 				local updated = table.clone(options)
 				updated.playing = true
 				setOptions(updated)
@@ -85,7 +94,7 @@ return function(props: Props): React.ReactElement
 			BackgroundTransparency = 1,
 			Text = if #selected == 0
 				then "Select assets in Explorer to preview them."
-				else "This selection has no children to preview.",
+				else "This selection has no supported assets to preview.",
 			TextColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainText),
 			Font = Enum.Font.SourceSans,
 			TextSize = 16,

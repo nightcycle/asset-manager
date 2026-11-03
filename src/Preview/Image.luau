@@ -3,6 +3,15 @@ local RunService = game:GetService("RunService")
 local Types = require(script.Parent.Parent.Shared.Types)
 local Image = {}
 function Image.Asset(source: Instance): string
+	if source:IsA("Shirt") then
+		return source.ShirtTemplate
+	elseif source:IsA("Pants") then
+		return source.PantsTemplate
+	elseif source:IsA("ShirtGraphic") then
+		return source.Graphic
+	elseif source:IsA("SurfaceAppearance") or source:IsA("MaterialVariant") then
+		return source.ColorMap
+	end
 	if source:IsA("Decal") or source:IsA("Texture") then
 		return source.Texture
 	end

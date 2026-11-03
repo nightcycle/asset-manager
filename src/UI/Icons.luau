@@ -25,6 +25,10 @@ export type Name =
 	| "refresh"
 	| "insert_drive_file"
 	| "view_in_ar"
+	| "play_arrow"
+	| "pause"
+	| "grid_view"
+	| "view_list"
 export type Glyph = { Image: string, ImageRectOffset: Vector2, ImageRectSize: Vector2 }
 -- Keep the package's generated thousands-of-icons type behind this small adapter.
 local glyphs = (MaterialIcons.default.dp_24.scale_2 :: unknown) :: { [string]: Glyph }
@@ -49,6 +53,7 @@ function Icons.Image(
 end
 function Icons.Button(props: {
 	name: Name,
+	text: string?,
 	click: () -> (),
 	position: UDim2?,
 	size: UDim2?,
@@ -59,6 +64,7 @@ function Icons.Button(props: {
 }): React.ReactElement
 	local glyph = Icons.Get(props.name)
 	return e(Studio.Button, {
+		Text = props.text,
 		Icon = {
 			Image = glyph.Image,
 			RectOffset = glyph.ImageRectOffset,

@@ -11,6 +11,11 @@ local Settings = require(Source.Shared.ViewSettings)
 local BonePreview = require(Source.Preview.BonePreview)
 local Clothing = require(Source.Preview.Clothing)
 local R15 = require(Source.Preview.R15)
+local Playback = require(Source.Preview.Playback)
+local Surface = require(Source.Preview.Surface)
+local Image = require(Source.Preview.Image)
+local Selection = require(Source.Preview.Selection)
+local Hierarchy = require(Source.Shared.Hierarchy)
 return function(): number
 	local count = 0
 	local function check(condition: boolean, message: string)
@@ -25,6 +30,17 @@ return function(): number
 	check(columns == 2 and rows == 2, "Square panel lost its grid")
 	columns, rows = Pagination.Grid(2, 400, 600)
 	check(columns == 1 and rows == 2, "Portrait pair should stack vertically")
+	columns, rows = Pagination.Grid(16, 1200, 300)
+	check(columns == 8 and rows == 2, "Wide panel forced sixteen previews into a narrow strip")
+	columns, rows = Pagination.Grid(16, 300, 1200)
+	check(columns == 2 and rows == 8, "Tall panel forced sixteen previews into a short strip")
+	columns, rows = Pagination.Grid(7, 720, 360)
+	check(columns == 4 and rows == 2, "Square cells were sacrificed to avoid an empty slot")
+	check(Settings.Default(false).maxItems == 16, "Default preview target is not sixteen")
+	check(Pagination.PreviewCapacity(500, 360, 1, 16) == 16, "Normal dock did not reach sixteen previews")
+	check(Pagination.PreviewCapacity(200, 200, 1, 16) == 4, "Small dock did not reduce preview capacity")
+	check(Pagination.PreviewCapacity(800, 800, 1, 64) == 64, "Higher configured preview limits were ignored")
+	check(Pagination.PreviewCapacity(1, 1, 8, 16) == 8, "Preview minimum was ignored")
 	check(Framing.Scale(Vector2.new(200, 100), Vector2.new(100, 100), "Fit") == 0.5, "Fit cropped a 2D asset")
 	check(Framing.Scale(Vector2.new(200, 100), Vector2.new(100, 100), "Fill") == 1, "Fill did not cover the preview")
 	local fit = Framing.Distance(CFrame.identity, Vector3.new(8, 2, 2), Vector3.zAxis, 1, 40, "Fit")
@@ -73,6 +89,44 @@ return function(): number
 	sound:Destroy()
 	sourceSound.PlayOnRemove = false
 	sourceSound:Destroy()
+	local aSound, bSound, notSound = Instance.new("Sound"), Instance.new("Sound"), Instance.new("Part")
+	local soundSelection: { Instance } = { notSound, aSound, bSound }
+	check(Playback.Sound(soundSelection, 1, 3, nil) == aSound, "Multiple sounds did not choose the first sound")
+	check(Playback.Sound(soundSelection, 1, 3, bSound) == bSound, "Manual audio selection did not transfer playback")
+	check(Playback.Sound(soundSelection, 3, 3, aSound) == bSound, "Off-page sound prevented visible sound playback")
+	check(Playback.Sound(soundSelection, 1, 1, nil) == nil, "Non-sound selection acquired audio playback")
+	check(
+		not Playback.Audible({ playing = true, audioEnabled = false, background = "Studio", mirrorLighting = true }),
+		"Secondary sound was audible"
+	)
+	check(
+		not Playback.Audible({ playing = false, audioEnabled = true, background = "Studio", mirrorLighting = true }),
+		"Paused audio was audible"
+	)
+	aSound.TimePosition = 7
+	Audio.SetAudible(aSound, false, true, 0.4)
+	check(aSound.Volume == 0 and aSound.TimePosition == 7, "Silent analysis reset its playback position")
+	Audio.SetAudible(aSound, true, false, 0.4)
+	check(
+		math.abs(aSound.Volume - 0.4) < 0.0001 and aSound.TimePosition == 0,
+		"Listening did not restart at zero with volume"
+	)
+	aSound.TimePosition = 2
+	Audio.SetAudible(aSound, true, true, 0.4)
+	check(aSound.TimePosition == 2, "Listening restarted on every frame")
+	local envelope = table.create(4, 0)
+	Audio.Record(envelope, 0, 4, 250)
+	Audio.Record(envelope, 0.5, 4, 100)
+	Audio.Record(envelope, 3.9, 4, 1000)
+	check(
+		envelope[1] == 0.5 and envelope[4] == 1 and envelope[2] == 0,
+		"Audio envelope lost peaks or placed them at the wrong time"
+	)
+	Audio.Record(envelope, 0, 0, 1000)
+	check(envelope[1] == 0.5, "Unloaded audio changed its stored envelope")
+	aSound:Destroy()
+	bSound:Destroy()
+	notSound:Destroy()
 	local sequence = Instance.new("KeyframeSequence")
 	for _, time in { 2, 0 } do
 		local key = Instance.new("Keyframe")
@@ -178,6 +232,14 @@ return function(): number
 		garment:Destroy()
 	end
 	clothingRig:Destroy()
+	local shirt, pants = Instance.new("Shirt"), Instance.new("Pants")
+	shirt.ShirtTemplate, pants.PantsTemplate = "rbxassetid://123", "rbxassetid://456"
+	check(
+		Image.Asset(shirt) == shirt.ShirtTemplate and Image.Asset(pants) == pants.PantsTemplate,
+		"Clothing fallback did not expose the actual template image"
+	)
+	shirt:Destroy()
+	pants:Destroy()
 	local skeletonClip = Instance.new("KeyframeSequence")
 	for _, time in { 0, 1 } do
 		local key = Instance.new("Keyframe")
@@ -216,6 +278,27 @@ return function(): number
 			and (singleClip.nodes[1].sample(0).LookVector - (single:GetChildren()[1] :: Pose).CFrame.LookVector).Magnitude
 				< 0.0001,
 		"Standalone Keyframe was not shown as its authored pose"
+	)
+	local selectedPose = single:GetChildren()[1] :: Pose
+	selectedPose.Weight = 0.5
+	local poseClip = Sampler.Compile(selectedPose)
+	local expectedPose = CFrame.identity:Lerp(selectedPose.CFrame, 0.5)
+	check(
+		poseClip.length == 0 and #poseClip.nodes == 5 and poseClip.channels.Tip == nil,
+		"Pose selection lost its descendants or merged duplicate branches"
+	)
+	check(
+		(poseClip.nodes[1].sample(0).LookVector - expectedPose.LookVector).Magnitude < 0.0001
+			and selectedPose.Parent == single,
+		"Pose weight was ignored or the original pose was moved"
+	)
+	local detachedPose = selectedPose:Clone()
+	assert(detachedPose)
+	check(#Sampler.Compile(detachedPose).nodes == 5, "Detached Pose clone failed to compile")
+	detachedPose:Destroy()
+	check(
+		not Playback.HasControls(selectedPose) and not Playback.HasControls(single),
+		"Static poses acquired playback controls"
 	)
 	skeletonClip:Destroy()
 	local restRig = Instance.new("Model")
@@ -262,5 +345,76 @@ return function(): number
 	end
 	check(#visiblePoints == 8 and maximumExtent < 2, "Invisible helper parts inflated preview framing")
 	upgraded:Destroy()
+	local private = Instance.new("Folder")
+	private:SetAttribute("_AssetToolsPreview", true)
+	local material = Instance.new("MaterialVariant")
+	material.Name, material.BaseMaterial, material.MaterialPattern =
+		"Original", Enum.Material.Grass, Enum.MaterialPattern.Organic
+	local sphere = Surface.Variant(material, "UniquePreview", private)
+	check(
+		sphere.Shape == Enum.PartType.Ball
+			and sphere.Material == Enum.Material.Grass
+			and sphere.MaterialVariant == "UniquePreview",
+		"Organic material did not render on its own sphere variant"
+	)
+	material.MaterialPattern = Enum.MaterialPattern.Regular
+	local cube = Surface.Variant(material, "SecondPreview", private)
+	check(
+		cube.Shape == Enum.PartType.Block and material.Name == "Original" and material.Parent == nil,
+		"Regular material was not a cube or modified the source"
+	)
+	local variant = private:FindFirstChild("UniquePreview") :: MaterialVariant
+	check(not variant.Archivable and variant ~= material, "Preview material can persist into a saved place")
+	check(
+		Hierarchy.IsExcluded(variant) and #Selection.Expand({ private }) == 0,
+		"Temporary preview materials leaked into asset selection"
+	)
+	sphere:Destroy()
+	cube:Destroy()
+	private:Destroy()
+	material:Destroy()
+	local mesh = Instance.new("MeshPart")
+	local appearance = Instance.new("SurfaceAppearance")
+	appearance.ColorMap, appearance.NormalMap = "rbxassetid://123", "rbxassetid://456"
+	local appearanceClone = Surface.Apply(appearance, mesh) :: SurfaceAppearance
+	check(
+		appearanceClone.ColorMap == appearance.ColorMap
+			and appearanceClone.NormalMap == appearance.NormalMap
+			and appearanceClone.Parent == mesh
+			and appearance.Parent == nil,
+		"Surface preview lost PBR maps or moved its source"
+	)
+	appearance:Destroy()
+	local normals: { [string]: Vector3 } = {
+		Front = -Vector3.zAxis,
+		Back = Vector3.zAxis,
+		Top = Vector3.yAxis,
+		Bottom = -Vector3.yAxis,
+		Left = -Vector3.xAxis,
+		Right = Vector3.xAxis,
+	}
+	for _, face in Enum.NormalId:GetEnumItems() do
+		local decal = Instance.new("Decal")
+		decal.Face, decal.Transparency, decal.Texture = face, 0.25, "rbxassetid://123"
+		local copied = Surface.Apply(decal, mesh) :: Decal
+		local normal = mesh.CFrame:VectorToWorldSpace(normals[face.Name])
+		check(
+			normal:Dot(Vector3.zAxis) > 0.99
+				and copied.Face == face
+				and copied.Transparency == decal.Transparency
+				and copied.Texture == decal.Texture,
+			"Decal face points away from camera or lost appearance"
+		)
+		decal:Destroy()
+	end
+	local texture = Instance.new("Texture")
+	texture.StudsPerTileU, texture.StudsPerTileV, texture.OffsetStudsU = 2, 3, 0.5
+	local textureClone = Surface.Apply(texture, mesh) :: Texture
+	check(
+		textureClone.StudsPerTileU == 2 and textureClone.StudsPerTileV == 3 and textureClone.OffsetStudsU == 0.5,
+		"Texture sample lost tiling or offset"
+	)
+	texture:Destroy()
+	mesh:Destroy()
 	return count
 end

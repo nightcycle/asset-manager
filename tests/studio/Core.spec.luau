@@ -75,6 +75,45 @@ return function(): number
 	nestedPart.Parent = nil
 	expanded = PreviewSelection.Expand({ container, added })
 	check(#expanded == 2 and expanded[1] == model and expanded[2] == added, "Removed child or overlap persisted")
+	local metadata, scriptAsset = Instance.new("StringValue"), Instance.new("ModuleScript")
+	metadata.Parent, scriptAsset.Parent = configuration, empty
+	expanded = PreviewSelection.Expand({ container })
+	check(
+		#expanded == 2 and expanded[1] == model and expanded[2] == added,
+		"Unsupported nested children became preview tiles"
+	)
+	expanded = PreviewSelection.Expand({ metadata, scriptAsset })
+	check(
+		#expanded == 2 and expanded[1] == metadata and expanded[2] == scriptAsset,
+		"Direct unsupported selections lost their details previews"
+	)
+	local overlappingSelections: { { Instance } } = { { container, metadata }, { metadata, container } }
+	for _, selection in overlappingSelections do
+		expanded = PreviewSelection.Expand(selection)
+		local matches = 0
+		for _, instance in expanded do
+			if instance == metadata then
+				matches += 1
+			end
+		end
+		check(
+			#expanded == 3 and matches == 1,
+			"Container overlap hid or duplicated a directly selected unsupported child"
+		)
+	end
+	local unsupportedOnly = Instance.new("Configuration")
+	local value = Instance.new("NumberValue")
+	value.Parent = unsupportedOnly
+	expanded, containers = PreviewSelection.Expand({ unsupportedOnly })
+	check(
+		#expanded == 0 and #containers == 1,
+		"Unsupported-only container showed details or stopped watching for new children"
+	)
+	local supported = Instance.new("ImageLabel")
+	supported.Parent = unsupportedOnly
+	expanded = PreviewSelection.Expand({ unsupportedOnly })
+	check(#expanded == 1 and expanded[1] == supported, "A new renderable child was filtered out")
+	unsupportedOnly:Destroy()
 	nestedPart:Destroy()
 	container:Destroy()
 
@@ -192,8 +231,11 @@ return function(): number
 	local classes: { [string]: string } = {
 		Animation = "animation",
 		ParticleEmitter = "particles",
-		Decal = "image",
-		Texture = "image",
+		Decal = "surface",
+		Texture = "surface",
+		SurfaceAppearance = "surface",
+		MaterialVariant = "surface",
+		Pose = "animation",
 		ImageLabel = "gui",
 		KeyframeSequence = "animation",
 		CurveAnimation = "animation",
