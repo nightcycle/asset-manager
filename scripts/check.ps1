@@ -16,6 +16,8 @@ if ((Get-Content Packages/React.lua -Raw) -notmatch 'local REQUIRED_MODULE') {
 if ((Get-Content DevPackages/UILabs.lua -Raw) -notmatch 'local REQUIRED_MODULE') {
     Invoke-Checked wally-package-types @('--sourcemap', 'sourcemap.json', 'DevPackages')
 }
+# Fresh runners need the @lune type definitions before static analysis.
+Invoke-Checked lune @('setup')
 Invoke-Checked luau-lsp @('analyze', '--definitions=@roblox=.tools/roblox.d.luau', '--sourcemap=sourcemap.json', '--platform=roblox', '--ignore=Packages/**', '--ignore=DevPackages/**', 'src', 'stories', 'tests/studio')
 Invoke-Checked luau-lsp @('analyze', '--definitions=@roblox=.tools/roblox.d.luau', '--platform=roblox', 'scripts/publish-engine.luau', 'scripts/build-demo.luau', 'tests/demo.luau')
 foreach ($pluginName in @('previewer', 'organizer')) {
