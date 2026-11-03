@@ -7,6 +7,7 @@ local Paths = require(script.Parent.Parent.Shared.Paths)
 local Query = require(script.Parent.Query)
 local Catalog = require(script.Parent.Catalog)
 local Hierarchy = require(script.Parent.Parent.Shared.Hierarchy)
+local AssetFilter = require(script.Parent.AssetFilter)
 export type Database = {
 	ReadSchema: () -> Types.Schema,
 	SaveSchema: (Types.Schema) -> (),
@@ -148,7 +149,8 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 			local stack: { Entry } = { { instance = scope, path = query.scope, depth = 0 } }
 			local savedSchema = storage:FindFirstChild(SCHEMA_NAME)
 			local function hidden(instance: Instance): boolean
-				return instance:IsA("CoreGui")
+				return Hierarchy.IsExcluded(instance)
+					or (query.browse == true and AssetFilter.IsNonAsset(instance))
 					or instance == savedSchema
 					or (
 						instance.Name == "AssetToolsMCP"
@@ -157,7 +159,7 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 					)
 			end
 			-- Cache folder contents once per query, including branches of only empty folders.
-			-- Files remain atomic, and private plugin data cannot make a folder appear populated.
+			-- Files remain atomic; code, metadata, and private previews cannot populate folders.
 			local populated: { [Instance]: boolean } = {}
 			if query.browse then
 				local pending: { Instance } = { scope }

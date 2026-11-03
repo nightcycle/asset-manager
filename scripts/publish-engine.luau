@@ -9,6 +9,14 @@ local instances = game:GetService("SerializationService"):DeserializeInstancesAs
 assert(#instances == 1, "Expected exactly one plugin root")
 local root = instances[1]
 assert(root:IsA("Model") and root:FindFirstChild("Main"), "Invalid plugin artifact")
+local sourceFolder = root:FindFirstChild("Source")
+local generated = if sourceFolder then sourceFolder:FindFirstChild("Generated") else nil
+local icons = if generated then generated:FindFirstChild("PluginIcons") else nil
+assert(icons and icons:IsA("ModuleScript"), "Missing Asphalt plugin icons")
+assert(
+	not icons.Source:find("rbxasset://", 1, true),
+	"Sync icons to cloud and rebuild before publishing; local Studio content is not portable"
+)
 -- Do not parent or execute the plugin. Publish the serialized model directly.
 local result, version = game:GetService("AssetService"):CreateAssetVersionAsync(root, Enum.AssetType.Plugin, assetId, {
 	Name = "__PLUGIN_NAME__",

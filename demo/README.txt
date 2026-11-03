@@ -16,7 +16,7 @@ TEST IN EDIT MODE (no Play button required):
 3. Select AssetGallery or a category folder to preview its children; nested
    Folders and Configurations expand recursively, while Models stay intact.
    Unsupported children are skipped; directly select Fallback_StringValue
-   in PreviewExamples to see its details preview.
+   in PreviewExamples to see its broken-image placeholder.
 4. Hover the viewer and open the top-right ellipsis menu for automatic page
    limits, autoplay, background, Fit/Fill, and lighting. Pagination appears only when
    more than one page is needed. Switch the Studio theme; adjust Lighting.
@@ -44,11 +44,20 @@ TEST IN EDIT MODE (no Play button required):
 13. Select Clothing_TShirt to preview a graphic on R15. Set ShirtTemplate or
     PantsTemplate on the other clothing fixtures to view their template images.
 14. Click Grid beside Organizer's search box for previews with wrapped labels
-    underneath; click List to return to rows. The view is saved. Menu > View
-    and playback settings configures autoplay and page limits. Resize to test capacity.
+    underneath; click List to return to rows. Grid's automatic page size is
+    three times its previous fitted count, subject to the saved limits.
+    Click the footer items/page button, disable Automatic page size, and set
+    an exact count (1-200). List and Grid counts are saved independently.
+    Increase the count and resize the dock: the icons/cards shrink so the
+    complete page fits without scrolling. Search results also fit their paths.
+    Grid cells stay square, with at least four columns, including narrow docks.
+    UI Labs includes Explorer fitted pages and Plugin icons stories.
 15. Material_OrganicSphere and Material_RegularCube show native materials on
     the indicated shapes. SurfaceAppearance_Mesh, Decal_Sparkles, and
     Texture_TiledMesh use Studio's built-in preview mesh; drag to orbit them.
+16. Fallback_Fire remains visible in Organizer with a broken-image icon.
+    Hidden_NonAssetsOnly and Fallback_StringValue are excluded from Organizer:
+    code, metadata, and empty subfolders do not count as folder assets.
 
 ReplicatedStorage.lib preserves all supplied library assets, names, tags,
 attributes, meshes, and textures. Workspace.AssetGallery contains separate

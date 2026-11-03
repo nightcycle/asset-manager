@@ -20,6 +20,7 @@ return Story.Create("Material icons", { LightTheme = false }, function()
 		"insert_drive_file",
 		"grid_view",
 		"view_list",
+		"broken_image",
 	}
 	local children: UI.Children = {
 		Layout = React.createElement("UIGridLayout", {

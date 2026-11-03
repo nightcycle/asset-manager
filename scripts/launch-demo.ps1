@@ -9,7 +9,15 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Push-Location $repoRoot
 try {
-    if (-not $SkipBuild) { & (Join-Path $PSScriptRoot 'check.ps1') }
+    $needsBuild = -not $SkipBuild
+    # Local content references must be installed for the current Studio version.
+    $iconModule = Join-Path $repoRoot 'src/Generated/PluginIcons.luau'
+    $iconsBefore = Get-Content -LiteralPath $iconModule -Raw
+    if ($iconsBefore -match 'rbxasset://') {
+        & (Join-Path $PSScriptRoot 'sync-icons.ps1') -Target studio
+        if ($iconsBefore -ne (Get-Content -LiteralPath $iconModule -Raw)) { $needsBuild = $true }
+    }
+    if ($needsBuild) { & (Join-Path $PSScriptRoot 'check.ps1') }
     $demoPath = Join-Path $repoRoot 'build/AssetToolsDemo.rbxl'
     if (-not (Test-Path -LiteralPath $demoPath -PathType Leaf)) { throw 'Build the demo first with scripts/check.ps1.' }
 

@@ -1,0 +1,13 @@
+# Asphalt 2.0.2; source icons are composed by scripts/build-icons.py.
+[creator]
+type = "group"
+id = 4181328
+
+[codegen]
+typescript = false
+style = "nested"
+strip_extensions = true
+
+[inputs.PluginIcons]
+path = "assets/plugins/*.svg"
+output_path = "src/Generated"

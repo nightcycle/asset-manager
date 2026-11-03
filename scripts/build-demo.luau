@@ -305,6 +305,16 @@ example(texture, "Image")
 local fallback = Instance.new("StringValue")
 fallback.Name = "Fallback_StringValue"
 example(fallback, "Other")
+local unsupported = Instance.new("Fire")
+unsupported.Name = "Fallback_Fire"
+example(unsupported, "Other")
+local nonAssets = Instance.new("Configuration")
+nonAssets.Name = "Hidden_NonAssetsOnly"
+for _, class in { "ModuleScript", "StringValue", "Folder" } do
+	local child = Instance.new(class)
+	child.Parent = nonAssets
+end
+example(nonAssets, "Other")
 
 local tags: { { name: string, description: string } } = {}
 local descriptions: { [string]: string } = {

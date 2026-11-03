@@ -1,4 +1,4 @@
-Third-party notices for the runtime Wally dependencies.
+Third-party notices for the runtime Wally dependencies and plugin artwork.
 
 jsdotlua_boolean@1.2.7, jsdotlua_collections@1.2.7, jsdotlua_console@1.2.7, jsdotlua_es7-types@1.2.7, jsdotlua_instance-of@1.2.7, jsdotlua_luau-polyfill@1.2.7, jsdotlua_math@1.2.7, jsdotlua_number@1.2.7, jsdotlua_string@1.2.7, jsdotlua_symbol-luau@1.0.1, jsdotlua_timers@1.2.7
 ========================================================================
@@ -98,6 +98,11 @@ THE SOFTWARE.
 
 
 nightcycle_material-icons@1.0.3
+Google Material Design icons (view_in_ar, visibility, folder, label)
+https://github.com/google/material-design-icons
+Revision: 10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7
+Modified by Nightcycle: paired into the Previewer and Organizer plugin marks,
+with badge composition, color, scale and SVG transformations.
 ========================================================================
                                  Apache License
                            Version 2.0, January 2004

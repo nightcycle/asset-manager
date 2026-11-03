@@ -10,6 +10,18 @@ for _, name in { "Previewer", "Organizer" } do
 	assert(root:FindFirstChild("Packages") and root:FindFirstChild("Source"), "Missing runtime files")
 	assert(root:FindFirstChild("ThirdPartyNotices"), "Missing runtime dependency license notices")
 	assert(root.Packages:FindFirstChild("MaterialIcons"), "MaterialIcons missing from runtime packages")
+	local icons = luau.load(root.Source.Generated.PluginIcons.Source)()
+	assert(
+		type(icons.Previewer) == "string" and type(icons.Organizer) == "string" and icons.Previewer ~= icons.Organizer,
+		"Missing distinct Asphalt plugin icons"
+	)
+	for _, icon in { icons.Previewer, icons.Organizer } do
+		assert(
+			icon:match("^rbxassetid://%d+$") or icon:match("^rbxasset://%.asphalt%-"),
+			"Invalid Asphalt asset reference"
+		)
+	end
+	assert(root.Source.Shared:FindFirstChild("PluginToolbar"), "Missing shared toolbar host")
 	local iconPackage = root.Packages._Index["nightcycle_material-icons@1.0.3"]["material-icons"]
 	local glyphs = luau.load(
 		iconPackage.Default_24_2.Source,

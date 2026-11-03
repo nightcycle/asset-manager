@@ -109,19 +109,7 @@ Registry.Register({
 		return true
 	end,
 	mount = function(context)
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.fromScale(1, 1)
-		label.BackgroundTransparency = 1
-		label.TextColor3 = Color3.fromRGB(128, 128, 128)
-		label.TextSize = 16
-		label.TextWrapped = true
-		label.Text =
-			`{context.source.ClassName}\n{#context.source:GetChildren()} children\n{#context.source:GetDescendants()} descendants`
-		label.Parent = context.host
-		context.onCleanup(function()
-			label:Destroy()
-		end)
-		context.report("No visual renderer registered for this class")
+		context.report("No preview available for " .. context.source.ClassName)
 	end,
 })
 return Registry

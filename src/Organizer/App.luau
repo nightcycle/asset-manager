@@ -21,6 +21,7 @@ local Hierarchy = require(script.Parent.Parent.Shared.Hierarchy)
 local Icons = require(script.Parent.Parent.UI.Icons)
 local Breadcrumbs = require(script.Parent.Parent.UI.Breadcrumbs)
 local Pagination = require(script.Parent.Parent.Shared.Pagination)
+local ExplorerLayout = require(script.Parent.Parent.Shared.ExplorerLayout)
 local Settings = require(script.Parent.Parent.Shared.ViewSettings)
 local SettingsEditor = require(script.Parent.Parent.UI.ViewSettings)
 local e = React.createElement
@@ -39,6 +40,24 @@ return function(props: Props): React.ReactElement
 	local database = props.database
 	local settings, setSettings = React.useState(props.initialSettings or Settings.Default(true))
 	local size, setSize = React.useState(Vector2.new(480, 640))
+	local bounds = React.useRef(nil :: Frame?)
+	React.useLayoutEffect(function()
+		local frame = bounds.current
+		if not frame then
+			return
+		end
+		local function measure()
+			local actual = frame.AbsoluteSize
+			if actual.X > 0 and actual.Y > 0 then
+				setSize(actual)
+			end
+		end
+		local changed = frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(measure)
+		measure()
+		return function()
+			changed:Disconnect()
+		end
+	end, {} :: { unknown })
 	local function changeSettings(value: Settings.Settings)
 		setSettings(value)
 		if props.onSettings then
@@ -71,15 +90,20 @@ return function(props: Props): React.ReactElement
 	local filterValue = filterState.value
 	local searchView = search ~= "" or #tags > 0 or (filterName ~= "" and filterValue ~= nil)
 	local grid = settings.viewMode == "Grid"
-	local gridHeight = if searchView then 216 else 184
-	local gridColumns = math.max(1, math.floor((size.X - 26 + 8) / 152))
-	local capacity = Pagination.Capacity(
-		math.max(size.X - 26 + 8, 1),
-		math.max(size.Y - 80 - 94 - 20 + 8, 1),
-		if grid then 152 else math.max(size.X, 1),
-		if grid then gridHeight + 8 else 64,
-		settings.minItems,
-		settings.maxItems
+	local fittingWidth = math.max(size.X - 20, 1)
+	local fittingHeight = math.max(size.Y - 80 - 94 - 20, 1)
+	local capacity = Settings.ExplorerCapacity(
+		settings,
+		if grid
+			then math.max(4, math.floor((fittingWidth + 8) / 152)) * math.max(1, math.floor((fittingHeight + 8) / 152))
+			else Pagination.Capacity(
+				fittingWidth,
+				fittingHeight + 8,
+				fittingWidth,
+				64,
+				settings.minItems,
+				settings.maxItems
+			)
 	)
 	local function setFilterValue(value: Types.Value?)
 		setFilterState({ value = value })
@@ -275,6 +299,9 @@ return function(props: Props): React.ReactElement
 			selectedPaths[(record :: Types.Record).path] = true
 		end
 	end
+	local pages = math.max(1, math.ceil(total / capacity))
+	local footerHeight = if pages > 1 then 94 else 58
+	local layout = ExplorerLayout.Fit(#records, size.X - 20, size.Y - 80 - footerHeight - 20, grid)
 	local resultRows: UI.Children = {}
 	for index, record in records do
 		local resolved, source = pcall(database.Resolve, record.path)
@@ -284,6 +311,7 @@ return function(props: Props): React.ReactElement
 			thumbnails = not drawerOpen,
 			showPath = searchView,
 			grid = grid,
+			scale = layout.scale,
 			autoPlay = settings.autoPlay,
 			selected = record.kind == "asset" and selectedPaths[record.path] == true,
 			order = index,
@@ -335,7 +363,8 @@ return function(props: Props): React.ReactElement
 	end
 	local drawerBody: React.ReactNode
 	if view == "Settings" then
-		drawerBody = e(SettingsEditor, { value = settings, change = changeSettings, organizer = true })
+		drawerBody =
+			e(SettingsEditor, { value = settings, change = changeSettings, organizer = true, capacity = capacity })
 	elseif view == "Schema" then
 		drawerBody = e(SchemaEditor, {
 			schema = schema,
@@ -525,166 +554,190 @@ return function(props: Props): React.ReactElement
 				else nil,
 		})
 	end
-	local pages = math.max(1, math.ceil(total / capacity))
-	local footerHeight = if pages > 1 then 94 else 58
 	local activeFilters = #tags + (if filterName ~= "" and filterValue ~= nil then 1 else 0)
 	local notice = if schemaResult.error ~= ""
 		then schemaResult.error
 		elseif queryError ~= "" then queryError
 		else status
-	return e(Studio.Background, {
-		[React.Change.AbsoluteSize] = function(frame: Frame)
-			setSize(frame.AbsoluteSize)
-		end,
+	-- StudioComponents.Background forwards visual props only, so measure a native Frame.
+	return e("Frame", {
+		ref = bounds,
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
 	}, {
-		Toolbar = e(
-			"Frame",
-			{ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 28), BackgroundTransparency = 1 },
-			{
-				Search = e(Studio.TextInput, {
-					Text = search,
-					OnChanged = setSearch,
-					PlaceholderText = "Search this folder…",
-					ClearTextOnFocus = false,
-					Size = UDim2.new(1, -130, 1, 0),
-				}),
-				ViewMode = e(Icons.Button, {
-					name = if grid then "view_list" else "grid_view",
-					text = if grid then "List" else "Grid",
-					position = UDim2.new(1, -122, 0, 0),
-					size = UDim2.fromOffset(76, 28),
-					click = function()
-						local updated = table.clone(settings)
-						updated.viewMode = if grid then "List" else "Grid"
-						changeSettings(updated)
-					end,
-				}),
-				Menu = e(Icons.Button, {
-					name = "menu",
-					position = UDim2.new(1, -38, 0, 0),
-					size = UDim2.fromOffset(38, 28),
-					click = function()
-						openDrawer(nil)
-					end,
-				}),
-			}
-		),
-		Navigation = e(
-			"Frame",
-			{ Position = UDim2.fromOffset(8, 44), Size = UDim2.new(1, -16, 0, 32), BackgroundTransparency = 1 },
-			{
-				Back = e(Icons.Button, {
-					name = "arrow_back",
-					disabled = history.index <= 1,
-					click = function()
-						moveHistory(-1)
-					end,
-				}),
-				Forward = e(Icons.Button, {
-					name = "arrow_forward",
-					position = UDim2.fromOffset(32, 0),
-					disabled = history.index >= #history.entries,
-					click = function()
-						moveHistory(1)
-					end,
-				}),
-				Up = e(Icons.Button, {
-					name = "arrow_upward",
-					position = UDim2.fromOffset(64, 0),
-					disabled = scope == "game",
-					click = function()
-						local parent = Navigation.Parent(scope)
-						if parent then
-							navigate(parent, nil)
-						end
-					end,
-				}),
-				Crumbs = e(
-					"Frame",
-					{ Position = UDim2.fromOffset(100, 0), Size = UDim2.new(1, -100, 1, 0), BackgroundTransparency = 1 },
-					{
+		Background = e(Studio.Background, nil, {
+			Toolbar = e(
+				"Frame",
+				{ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 28), BackgroundTransparency = 1 },
+				{
+					Search = e(Studio.TextInput, {
+						Text = search,
+						OnChanged = setSearch,
+						PlaceholderText = "Search this folder…",
+						ClearTextOnFocus = false,
+						Size = UDim2.new(1, -130, 1, 0),
+					}),
+					ViewMode = e(Icons.Button, {
+						name = if grid then "view_list" else "grid_view",
+						text = if grid then "List" else "Grid",
+						position = UDim2.new(1, -122, 0, 0),
+						size = UDim2.fromOffset(76, 28),
+						click = function()
+							local updated = table.clone(settings)
+							updated.viewMode = if grid then "List" else "Grid"
+							changeSettings(updated)
+						end,
+					}),
+					Menu = e(Icons.Button, {
+						name = "menu",
+						position = UDim2.new(1, -38, 0, 0),
+						size = UDim2.fromOffset(38, 28),
+						click = function()
+							openDrawer(nil)
+						end,
+					}),
+				}
+			),
+			Navigation = e(
+				"Frame",
+				{ Position = UDim2.fromOffset(8, 44), Size = UDim2.new(1, -16, 0, 32), BackgroundTransparency = 1 },
+				{
+					Back = e(Icons.Button, {
+						name = "arrow_back",
+						disabled = history.index <= 1,
+						click = function()
+							moveHistory(-1)
+						end,
+					}),
+					Forward = e(Icons.Button, {
+						name = "arrow_forward",
+						position = UDim2.fromOffset(32, 0),
+						disabled = history.index >= #history.entries,
+						click = function()
+							moveHistory(1)
+						end,
+					}),
+					Up = e(Icons.Button, {
+						name = "arrow_upward",
+						position = UDim2.fromOffset(64, 0),
+						disabled = scope == "game",
+						click = function()
+							local parent = Navigation.Parent(scope)
+							if parent then
+								navigate(parent, nil)
+							end
+						end,
+					}),
+					Crumbs = e("Frame", {
+						Position = UDim2.fromOffset(100, 0),
+						Size = UDim2.new(1, -100, 1, 0),
+						BackgroundTransparency = 1,
+					}, {
 						Path = e(Breadcrumbs, {
 							path = scope,
 							navigate = function(path: string)
 								navigate(path, nil)
 							end,
 						}),
-					}
-				),
-			}
-		),
-		List = e("Frame", {
-			Position = UDim2.fromOffset(0, 80),
-			Size = UDim2.new(1, 0, 1, -80 - footerHeight),
-			BackgroundTransparency = 1,
-		}, {
-			Rows = e(UI.Scroll, {
-				key = scope .. ":" .. tostring(page) .. settings.viewMode,
-				gridColumns = if grid and #records > 0 then gridColumns else nil,
-				cellWidth = math.max(1, math.floor((size.X - 26 - 8 * (gridColumns - 1)) / gridColumns)),
-				cellHeight = gridHeight,
-			}, resultRows),
-		}),
-		Footer = e("Frame", {
-			Position = UDim2.new(0, 8, 1, -footerHeight),
-			Size = UDim2.new(1, -16, 0, footerHeight),
-			BackgroundTransparency = 1,
-		}, {
-			Pager = if pages > 1
-				then e("Frame", { Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1 }, {
-					Controls = e(UI.Pager, { page = page, pages = pages, change = setPage }),
+					}),
+				}
+			),
+			List = e("Frame", {
+				Position = UDim2.fromOffset(0, 80),
+				Size = UDim2.new(1, 0, 1, -80 - footerHeight),
+				BackgroundTransparency = 1,
+			}, {
+				Rows = e("Frame", {
+					key = scope .. ":" .. tostring(page) .. settings.viewMode,
+					Position = UDim2.fromOffset(10, 10),
+					Size = UDim2.new(1, -20, 1, -20),
+					BackgroundTransparency = 1,
+					ClipsDescendants = true,
+				}, {
+					Layout = if #records > 0
+						then e("UIGridLayout", {
+							CellSize = UDim2.fromOffset(layout.width, layout.height),
+							CellPadding = UDim2.fromOffset(layout.gap, layout.gap),
+							FillDirectionMaxCells = layout.columns,
+							SortOrder = Enum.SortOrder.LayoutOrder,
+						})
+						else nil,
+					Items = e(React.Fragment, nil, resultRows),
+				}),
+			}),
+			Footer = e("Frame", {
+				Position = UDim2.new(0, 8, 1, -footerHeight),
+				Size = UDim2.new(1, -16, 0, footerHeight),
+				BackgroundTransparency = 1,
+			}, {
+				Pager = if pages > 1
+					then e("Frame", { Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1 }, {
+						Controls = e(UI.Pager, { page = page, pages = pages, change = setPage }),
+					})
+					else nil,
+				Count = e("Frame", {
+					Position = UDim2.fromOffset(0, if pages > 1 then 34 else 0),
+					Size = UDim2.new(1, 0, 0, 20),
+					BackgroundTransparency = 1,
+				}, {
+					Summary = e("Frame", { Size = UDim2.new(1, -104, 1, 0), BackgroundTransparency = 1 }, {
+						Text = e(UI.Text, {
+							text = if loading
+								then "Searching…"
+								else `{total} items` .. (if activeFilters > 0
+									then ` · {activeFilters} filters`
+									else ""),
+							height = 20,
+							muted = true,
+						}),
+					}),
+					PageSize = e(Studio.Button, {
+						Text = `{capacity} / page…`,
+						Position = UDim2.new(1, -96, 0, 0),
+						Size = UDim2.fromOffset(96, 20),
+						OnActivated = function()
+							openDrawer("Settings")
+						end,
+					}),
+				}),
+				Tags = e("Frame", {
+					Position = UDim2.fromOffset(0, if pages > 1 then 56 else 22),
+					Size = UDim2.new(1, 0, 0, 34),
+					BackgroundTransparency = 1,
+				}, {
+					Chips = e(TagChips, { tags = catalog.tags, selected = tags, toggle = toggleTag, limit = 12 }),
+				}),
+			}),
+			Drawer = if drawerOpen
+				then e(Drawer, {
+					title = "Organizer",
+					close = function()
+						setDrawerOpen(false)
+					end,
+				}, {
+					Sections = e(UI.Dropdown, {
+						clearable = false,
+						items = {
+							{ id = "Filters", label = "Filters and scope" },
+							{ id = "Selection", label = "Selected instances" },
+							{ id = "Schema", label = "Tag and attribute schema" },
+							{ id = "Review", label = `Review proposals ({#proposals})` },
+							{ id = "Settings", label = "View and playback settings" },
+						},
+						selected = view,
+						change = function(value: string?)
+							if value then
+								setView(value)
+							end
+						end,
+						order = 1,
+					}),
+					Notice = if notice ~= ""
+						then e(UI.Text, { text = notice, height = 64, wrapped = true, order = 2 })
+						else nil,
+					Body = e(UI.Column, { order = 3 }, { Content = drawerBody }),
 				})
 				else nil,
-			Count = e("Frame", {
-				Position = UDim2.fromOffset(0, if pages > 1 then 34 else 0),
-				Size = UDim2.new(1, 0, 0, 20),
-				BackgroundTransparency = 1,
-			}, {
-				Text = e(UI.Text, {
-					text = if loading
-						then "Searching…"
-						else `{total} items` .. (if activeFilters > 0 then ` · {activeFilters} filters` else ""),
-					height = 20,
-					muted = true,
-				}),
-			}),
-			Tags = e("Frame", {
-				Position = UDim2.fromOffset(0, if pages > 1 then 56 else 22),
-				Size = UDim2.new(1, 0, 0, 34),
-				BackgroundTransparency = 1,
-			}, {
-				Chips = e(TagChips, { tags = catalog.tags, selected = tags, toggle = toggleTag, limit = 12 }),
-			}),
 		}),
-		Drawer = if drawerOpen
-			then e(Drawer, {
-				title = "Organizer",
-				close = function()
-					setDrawerOpen(false)
-				end,
-			}, {
-				Sections = e(UI.Dropdown, {
-					clearable = false,
-					items = {
-						{ id = "Filters", label = "Filters and scope" },
-						{ id = "Selection", label = "Selected instances" },
-						{ id = "Schema", label = "Tag and attribute schema" },
-						{ id = "Review", label = `Review proposals ({#proposals})` },
-						{ id = "Settings", label = "View and playback settings" },
-					},
-					selected = view,
-					change = function(value: string?)
-						if value then
-							setView(value)
-						end
-					end,
-					order = 1,
-				}),
-				Notice = if notice ~= ""
-					then e(UI.Text, { text = notice, height = 64, wrapped = true, order = 2 })
-					else nil,
-				Body = e(UI.Column, { order = 3 }, { Content = drawerBody }),
-			})
-			else nil,
 	})
 end

@@ -1,6 +1,7 @@
 --!strict
 local React = require(script.Parent.Packages.React)
 local Host = require(script.Parent.Source.Shared.PluginHost)
+local PluginIcons = require(script.Parent.Source.Generated.PluginIcons)
 local App = require(script.Parent.Source.Organizer.App)
 local Database = require(script.Parent.Source.Organizer.Database)
 local Settings = require(script.Parent.Source.Shared.ViewSettings)
@@ -9,7 +10,7 @@ assert(pluginInstance, "Organizer must run as a Studio plugin")
 local storage = game:GetService("ServerStorage")
 local database = Database.new(game, storage, true)
 local viewSettings = Settings.Read(pluginInstance, "OrganizerViewSettings", true)
-Host.Start(pluginInstance, "Nightcycle.AssetOrganizer.v1", "Asset Organizer", function()
+Host.Start(pluginInstance, "Nightcycle.AssetOrganizer.v1", "Asset Organizer", PluginIcons.Organizer, function()
 	return React.createElement(App, {
 		database = database,
 		bridgeParent = storage,

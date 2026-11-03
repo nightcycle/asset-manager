@@ -3,6 +3,7 @@ local React = require(script.Parent.Parent.Parent.Packages.React)
 local Icons = require(script.Parent.Icons)
 local PreviewCard = require(script.Parent.PreviewCard)
 local Registry = require(script.Parent.Parent.Preview.Registry)
+local PreviewPlaceholder = require(script.Parent.PreviewPlaceholder)
 local e = React.createElement
 export type Props = { source: Instance?, active: boolean, autoPlay: boolean? }
 return function(props: Props): React.ReactElement
@@ -14,7 +15,9 @@ return function(props: Props): React.ReactElement
 		elseif renderer == "image" or renderer == "particles" then "image"
 		elseif renderer == "geometry" or renderer == "clothing" or renderer == "surface" then "view_in_ar"
 		else "insert_drive_file"
-	local fallback = e(Icons.Image, { name = icon, size = UDim2.fromScale(1, 1) })
+	local fallback = if renderer == "fallback"
+		then e(PreviewPlaceholder)
+		else e(Icons.Image, { name = icon, size = UDim2.fromScale(1, 1) })
 	return e("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true }, {
 		Preview = if source
 				and props.active

@@ -29,6 +29,7 @@ function Image.Number(source: Instance, name: string, fallback: number, maximum:
 end
 function Image.Mount(context: Types.PreviewContext)
 	local source = context.source
+	assert(Image.Asset(source) ~= "", "Set a texture image to preview this asset")
 	local label = Instance.new("ImageLabel")
 	label.BackgroundTransparency = 1
 	label.Size = UDim2.fromScale(1, 1)

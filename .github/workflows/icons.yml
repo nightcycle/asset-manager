@@ -1,0 +1,33 @@
+name: Sync plugin icons
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: asset-tools-icons
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: roblox-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CompeyDev/setup-rokit@v0.2.1
+        with:
+          version: v1.2.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Sync icons to group 4181328
+        shell: pwsh
+        env:
+          ASPHALT_API_KEY: ${{ secrets.ASPHALT_API_KEY }}
+        run: ./scripts/sync-icons.ps1 -Target cloud
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-icon-references
+          path: |
+            asphalt.lock.toml
+            src/Generated/PluginIcons.luau
+          if-no-files-found: error

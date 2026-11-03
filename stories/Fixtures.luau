@@ -52,6 +52,12 @@ function Fixtures.new(): Fixture
 	emptyFolder.Name, emptyFolder.Parent = "Hidden empty folder", assets
 	local emptyConfiguration = Instance.new("Configuration")
 	emptyConfiguration.Name, emptyConfiguration.Parent = "Hidden empty configuration", emptyFolder
+	local codeOnly = Instance.new("Folder")
+	codeOnly.Name, codeOnly.Parent = "Hidden code and metadata folder", assets
+	local module, metadata = Instance.new("ModuleScript"), Instance.new("StringValue")
+	module.Parent, metadata.Parent = codeOnly, codeOnly
+	local unsupportedAsset = Instance.new("Fire")
+	unsupportedAsset.Name, unsupportedAsset.Parent = "Fire (missing preview)", assets
 	for index, container in { collections :: Instance, variants :: Instance } do
 		local clone = selection[index]:Clone()
 		assert(clone)

@@ -3,6 +3,7 @@ local Source = script.Parent.Parent.Source
 local Schema = require(Source.Shared.Schema)
 local Paths = require(Source.Shared.Paths)
 local Pagination = require(Source.Shared.Pagination)
+local ExplorerLayout = require(Source.Shared.ExplorerLayout)
 local Types = require(Source.Shared.Types)
 local Database = require(Source.Organizer.Database)
 local Bridge = require(Source.Organizer.Bridge)
@@ -27,6 +28,38 @@ return function(): number
 			{ name = "Stylized", description = "Exaggerated shape", kind = "boolean" },
 		},
 	}
+	check(
+		ExplorerLayout.Fit(2, 460, 446, true).columns == 4,
+		"Sparse Grid pages did not preserve the four-column minimum"
+	)
+	-- Include odd pixel dimensions, partial rows, a minimum-size dock and the maximum page count.
+	for _, bounds in { Vector2.new(300, 106), Vector2.new(460, 446), Vector2.new(461, 447), Vector2.new(1000, 266) } do
+		for _, grid in { false, true } do
+			for _, items in { 1, 2, 3, 4, 8, 16, 24, 48, 100, 200 } do
+				local layout = ExplorerLayout.Fit(items, bounds.X, bounds.Y, grid)
+				check(layout.columns * layout.rows >= items, "Explorer dropped items from the page")
+				check(
+					layout.columns * layout.width + (layout.columns - 1) * layout.gap <= bounds.X + 0.001
+						and layout.rows * layout.height + (layout.rows - 1) * layout.gap <= bounds.Y + 0.001,
+					"Explorer page overflowed its available space"
+				)
+				if grid then
+					check(
+						layout.columns >= 4 and layout.width == layout.height,
+						"Grid cells must be square with at least four columns"
+					)
+					check(
+						layout.width == math.floor(layout.width) and layout.gap == math.floor(layout.gap),
+						"Fractional cells can wrap or overflow when Studio rounds their sizes"
+					)
+				end
+			end
+		end
+	end
+	check(
+		ExplorerLayout.Fit(48, 460, 446, true).scale < ExplorerLayout.Fit(12, 460, 446, true).scale,
+		"Adding items did not shrink Explorer icons"
+	)
 	check(Schema.Validate(schema), "Valid schema rejected")
 	check(Schema.ValidateValue(schema.attributes[1], 0), "Inclusive minimum")
 	check(Schema.ValidateValue(schema.attributes[1], 5), "Inclusive maximum")
@@ -380,6 +413,74 @@ return function(): number
 		"Opened a file as a directory"
 	)
 	browserRoot:Destroy()
+	local filteredRoot = Instance.new("Folder")
+	local codeOnly = Instance.new("Folder")
+	codeOnly.Name, codeOnly.Parent = "CodeOnly", filteredRoot
+	local emptyBranch = Instance.new("Configuration")
+	emptyBranch.Parent = codeOnly
+	local infrastructureClasses = {
+		"ModuleScript",
+		"Script",
+		"LocalScript",
+		"StringValue",
+		"ObjectValue",
+		"BindableEvent",
+		"BindableFunction",
+		"RemoteEvent",
+		"RemoteFunction",
+		"UnreliableRemoteEvent",
+		"Camera",
+	}
+	for _, class in infrastructureClasses do
+		local instance = Instance.new(class)
+		instance.Name, instance.Parent = class, codeOnly
+		instance:AddTag("InfrastructureOnly")
+		instance:SetAttribute("NotAnAsset", true)
+	end
+	local scriptDescendant = Instance.new("Part")
+	scriptDescendant.Name, scriptDescendant.Parent = "InsideCode", codeOnly:FindFirstChild("ModuleScript")
+	local filteredBrowser = Database.new(filteredRoot, filteredRoot, false)
+	local filteredRows, filteredCount, _, filteredCatalog = filteredBrowser.Query({ scope = "game", browse = true })
+	check(
+		#filteredRows == 0
+			and filteredCount == 0
+			and #filteredCatalog.tags == 0
+			and filteredCatalog.attributes.NotAnAsset == nil,
+		"Non-assets kept a folder visible or leaked into the browser catalog"
+	)
+	local unsupportedAsset = Instance.new("Fire")
+	unsupportedAsset.Name, unsupportedAsset.Parent = "FireAsset", emptyBranch
+	local populatedFiltered = filteredBrowser.Query({ scope = "game", browse = true, recursive = false })
+	check(
+		#populatedFiltered == 1 and populatedFiltered[1].name == "CodeOnly",
+		"Valid asset without a renderer was hidden"
+	)
+	local searchAssets, searchAssetCount =
+		filteredBrowser.Query({ scope = "game", browse = true, search = "FireAsset" })
+	check(
+		searchAssetCount == 1 and searchAssets[1].className == "Fire",
+		"Recursive search lost a valid unsupported asset"
+	)
+	local codeSearch, codeCount = filteredBrowser.Query({ scope = "game", browse = true, search = "ModuleScript" })
+	check(#codeSearch == 0 and codeCount == 0, "Search exposed excluded scripts or their children")
+	local metadataRows, metadataCount =
+		filteredBrowser.Query({ scope = "game/CodeOnly/ModuleScript", recursive = false })
+	check(metadataCount == 2 and #metadataRows == 2, "Explorer filtering changed the direct metadata query API")
+	unsupportedAsset:Destroy()
+	check(
+		#filteredBrowser.Query({ scope = "game", browse = true }) == 0,
+		"Removing the final real asset left an infrastructure-only folder visible"
+	)
+	local previewInternals = Instance.new("Folder")
+	previewInternals.Name, previewInternals.Parent = "InternalPreview", filteredRoot
+	previewInternals:SetAttribute("_AssetToolsPreview", true)
+	local previewPart = Instance.new("Part")
+	previewPart.Parent = previewInternals
+	check(
+		#filteredBrowser.Query({ scope = "game", browse = true }) == 0,
+		"Temporary preview material folders made a browser branch visible"
+	)
+	filteredRoot:Destroy()
 	local history = Navigation.Visit(Navigation.Visit(Navigation.New("game"), "game/A"), "game/A/B")
 	history = Navigation.Move(history, -1)
 	check(

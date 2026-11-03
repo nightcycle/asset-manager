@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32">
+  <title>Asset Organizer: Material folder + label</title>
+  <g transform="translate(0 1) scale(1.12)" fill="#19a397"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></g>
+  <circle cx="24" cy="24" r="8" fill="#ffffff"/>
+  <circle cx="24" cy="24" r="7" fill="#18364f"/>
+  <g transform="translate(17.5 17.5) scale(0.542)" fill="#ffffff"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></g>
+</svg>

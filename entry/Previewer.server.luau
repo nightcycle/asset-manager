@@ -1,6 +1,7 @@
 --!strict
 local React = require(script.Parent.Packages.React)
 local Host = require(script.Parent.Source.Shared.PluginHost)
+local PluginIcons = require(script.Parent.Source.Generated.PluginIcons)
 local App = require(script.Parent.Source.Preview.App)
 local Types = require(script.Parent.Source.Shared.Types)
 local Settings = require(script.Parent.Source.Shared.ViewSettings)
@@ -21,7 +22,7 @@ if scaleOk and (savedScale == "Fit" or savedScale == "Fill") then
 	scaleMode = savedScale
 end
 local viewSettings = Settings.Read(pluginInstance, "PreviewViewSettings", false)
-Host.Start(pluginInstance, "Nightcycle.AssetPreviewer.v1", "Asset Previewer", function()
+Host.Start(pluginInstance, "Nightcycle.AssetPreviewer.v1", "Asset Previewer", PluginIcons.Previewer, function()
 	return React.createElement(App, {
 		initialBackground = background,
 		initialScaleMode = scaleMode,

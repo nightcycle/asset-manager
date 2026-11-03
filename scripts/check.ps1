@@ -27,6 +27,7 @@ foreach ($pluginName in @('previewer', 'organizer')) {
 Invoke-Checked stylua @('--check', 'src', 'entry', 'stories', 'tests', 'scripts/publish-engine.luau', 'scripts/build-demo.luau')
 Invoke-Checked rojo @('build', 'default.project.json', '--output', 'build/development.rbxl')
 Invoke-Checked lune @('run', 'tests/run.luau')
+Invoke-Checked lune @('run', 'tests/toolbar.luau')
 Invoke-Checked lune @('run', 'tests/package.luau')
 Invoke-Checked lune @('run', 'scripts/build-demo.luau')
 Invoke-Checked lune @('run', 'tests/demo.luau')

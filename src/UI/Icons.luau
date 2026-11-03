@@ -29,6 +29,7 @@ export type Name =
 	| "pause"
 	| "grid_view"
 	| "view_list"
+	| "broken_image"
 export type Glyph = { Image: string, ImageRectOffset: Vector2, ImageRectSize: Vector2 }
 -- Keep the package's generated thousands-of-icons type behind this small adapter.
 local glyphs = (MaterialIcons.default.dp_24.scale_2 :: unknown) :: { [string]: Glyph }

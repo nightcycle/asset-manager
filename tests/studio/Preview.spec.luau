@@ -195,6 +195,47 @@ return function(): number
 			and savedSettings.viewMode == "Grid",
 		"Saved settings failed to normalize limits or retain autoplay/grid"
 	)
+	local explorerSettings = Settings.Default(true)
+	check(Settings.ExplorerCapacity(explorerSettings, 8) == 8, "List automatic page size changed")
+	explorerSettings.viewMode = "Grid"
+	check(Settings.ExplorerCapacity(explorerSettings, 8) == 24, "Grid did not triple its previous page size")
+	check(
+		Settings.ExplorerCapacity(explorerSettings, 18) == 54
+			and Settings.ExplorerCapacity(explorerSettings, 100) == 100,
+		"Grid density ignored size or configured maximum"
+	)
+	local fixedGrid = Settings.WithPageSize(explorerSettings, 72)
+	check(
+		Settings.ExplorerCapacity(fixedGrid, 8) == 72 and Settings.ExplorerCapacity(fixedGrid, 80) == 72,
+		"Fixed grid page size changed on resize"
+	)
+	check(Settings.PageSize(explorerSettings) == nil, "Changing page size mutated the previous settings")
+	fixedGrid.viewMode = "List"
+	local fixedBoth = Settings.WithPageSize(fixedGrid, 17)
+	check(
+		Settings.PageSize(fixedBoth) == 17 and fixedBoth.gridPageSize == 72,
+		"List and Grid page sizes overwrote each other"
+	)
+	fixedBoth.viewMode = "Grid"
+	local automaticAgain = Settings.WithPageSize(fixedBoth, nil)
+	check(
+		Settings.ExplorerCapacity(automaticAgain, 8) == 24 and automaticAgain.listPageSize == 17,
+		"Restoring automatic Grid erased the saved List count"
+	)
+	local restoredPages = Settings.Decode({ listPageSize = 33.8, gridPageSize = 400, viewMode = "Grid" }, true)
+	check(
+		restoredPages.listPageSize == 33 and Settings.ExplorerCapacity(restoredPages, 8) == 200,
+		"Saved page sizes did not validate or override automatic limits"
+	)
+	local invalidPages = Settings.Decode({ listPageSize = 0 / 0, gridPageSize = -5 }, true)
+	check(
+		invalidPages.listPageSize == nil and invalidPages.gridPageSize == nil,
+		"Invalid page settings did not fall back to automatic"
+	)
+	check(
+		Settings.Decode({ listPageSize = 20, gridPageSize = 40 }, false).gridPageSize == nil,
+		"Explorer page overrides leaked into Previewer"
+	)
 	check(
 		Settings.Decode({ minItems = 0 / 0, maxItems = math.huge }, false).autoPlay,
 		"Invalid settings disabled default autoplay"

@@ -8,6 +8,7 @@ local Registry = require(script.Parent.Parent.Preview.Registry)
 local Icons = require(script.Parent.Icons)
 local Playback = require(script.Parent.Parent.Preview.Playback)
 local PlaybackOverlay = require(script.Parent.PlaybackOverlay)
+local PreviewPlaceholder = require(script.Parent.PreviewPlaceholder)
 local e = React.createElement
 export type Props = {
 	source: Instance,
@@ -41,6 +42,7 @@ return function(props: Props): React.ReactElement
 	local source = props.source
 	local renderer = Registry.Resolve(source)
 	local minimal = props.minimal or renderer.id == "sound"
+	local missing = renderer.id == "fallback" or status.kind == "error"
 	local active: boolean = playing and (not source:IsA("Sound") or props.options.audioEnabled ~= false)
 	local background = if props.options.background == "Dark"
 		then Color3.fromRGB(28, 30, 34)
@@ -146,6 +148,7 @@ return function(props: Props): React.ReactElement
 		ClipsDescendants = true,
 	}, {
 		Playback = if not props.thumbnail
+				and not missing
 				and Playback.HasControls(source)
 				and (hovered or not active or source:IsA("Sound"))
 			then e(PlaybackOverlay, {
@@ -186,8 +189,15 @@ return function(props: Props): React.ReactElement
 				setHovered(false)
 			end,
 		}),
-		Fallback = if props.thumbnail and status.kind ~= "info"
+		Fallback = if missing
 			then e("Frame", {
+				Position = if minimal then UDim2.new() else UDim2.fromOffset(1, 26),
+				Size = if minimal then UDim2.fromScale(1, 1) else UDim2.new(1, -2, 1, -66),
+				BackgroundColor3 = background,
+				BorderSizePixel = 0,
+				ZIndex = 2,
+			}, { Icon = e(PreviewPlaceholder, { color = palette.current.text }) })
+			elseif props.thumbnail and status.kind == "loading" then e("Frame", {
 				Size = UDim2.fromScale(1, 1),
 				BackgroundTransparency = 1,
 				ZIndex = 3,
@@ -206,7 +216,7 @@ return function(props: Props): React.ReactElement
 				BackgroundTransparency = if minimal then 0.1 else 1,
 				BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainBackground),
 				BorderSizePixel = 0,
-				ZIndex = 2,
+				ZIndex = 3,
 				Text = status.text,
 				TextWrapped = true,
 				TextColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainText),
