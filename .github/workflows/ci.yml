@@ -1,0 +1,36 @@
+name: Validate and build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CompeyDev/setup-rokit@v0.2.1
+        with:
+          version: v1.2.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: wally install
+      - name: Require the committed dependency lockfile
+        run: git diff --exit-code -- wally.lock
+      - name: Strict analysis, tests, and all builds
+        shell: pwsh
+        run: ./scripts/check.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-tools
+          path: |
+            build/AssetPreviewer.rbxm
+            build/AssetOrganizer.rbxm
+            build/development.rbxl
+            build/AssetToolsDemo.rbxl
+            build/demo-manifest.json
+          if-no-files-found: error

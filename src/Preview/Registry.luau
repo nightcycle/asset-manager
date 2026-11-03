@@ -1,0 +1,160 @@
+--!strict
+local Types = require(script.Parent.Parent.Shared.Types)
+local World = require(script.Parent.World)
+local Image = require(script.Parent.Image)
+local Particles = require(script.Parent.Particles)
+local Registry = {}
+local renderers: { Types.Renderer } = {}
+function Registry.Register(renderer: Types.Renderer, priority: number?)
+	for _, existing in renderers do
+		assert(existing.id ~= renderer.id, `Duplicate renderer: {renderer.id}`)
+	end
+	local position = priority or (#renderers + 1)
+	if not priority then
+		for index, existing in renderers do
+			if existing.id == "fallback" then
+				position = index
+				break
+			end
+		end
+	end
+	table.insert(renderers, position, renderer)
+end
+function Registry.Resolve(source: Instance): Types.Renderer
+	for _, renderer in renderers do
+		if renderer.supports(source) then
+			return renderer
+		end
+	end
+	error("Missing fallback renderer")
+end
+Registry.Register({
+	id = "animation",
+	label = "R15 animation",
+	supports = function(i)
+		return i:IsA("Animation")
+	end,
+	mount = World.Animation,
+})
+Registry.Register({
+	id = "particles",
+	label = "Particle FX",
+	supports = function(i)
+		return i:IsA("ParticleEmitter")
+	end,
+	mount = Particles.Mount,
+})
+Registry.Register({
+	id = "image",
+	label = "Image / flipbook",
+	supports = function(i)
+		return i:IsA("Decal") or i:IsA("ImageLabel") or i:IsA("ImageButton")
+	end,
+	mount = Image.Mount,
+})
+Registry.Register({
+	id = "geometry",
+	label = "3D viewport",
+	supports = function(i)
+		return i:IsA("BasePart")
+			or i:IsA("Model")
+			or i:IsA("Accessory")
+			or i:IsA("Tool")
+			or i:IsA("SpecialMesh")
+			or (i:IsA("Folder") and i:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+	end,
+	mount = World.Geometry,
+})
+Registry.Register({
+	id = "gui",
+	label = "User interface",
+	supports = function(i)
+		return i:IsA("GuiObject") or i:IsA("LayerCollector")
+	end,
+	mount = function(context)
+		local clone = context.source:Clone()
+		assert(clone, "GUI is not Archivable")
+		context.onCleanup(function()
+			clone:Destroy()
+		end)
+		World.Sanitize(clone)
+		if clone:IsA("GuiObject") then
+			clone.AnchorPoint = Vector2.zero
+			clone.Position = UDim2.fromScale(0, 0)
+			clone.Size = UDim2.fromScale(1, 1)
+			clone.Visible = true
+			clone.Parent = context.host
+		else
+			for _, child in clone:GetChildren() do
+				child.Parent = context.host
+			end
+		end
+		context.report("Static GUI preview · scripts are excluded")
+	end,
+})
+Registry.Register({
+	id = "sound",
+	label = "Audio",
+	supports = function(i)
+		return i:IsA("Sound")
+	end,
+	mount = function(context)
+		local source = context.source
+		assert(source:IsA("Sound"))
+		local sound = source:Clone()
+		assert(sound, "Sound is not Archivable")
+		sound.Playing = false
+		sound.Volume = math.min(sound.Volume, 0.5)
+		sound.Looped = true
+		sound.Parent = game:GetService("SoundService")
+		context.onCleanup(function()
+			sound:Destroy()
+		end)
+		local button = Instance.new("TextButton")
+		button.Size = UDim2.fromScale(1, 1)
+		button.BackgroundTransparency = 1
+		button.TextColor3 = Color3.fromRGB(128, 128, 128)
+		button.Text = "Click to play audio"
+		button.TextSize = 16
+		button.Parent = context.host
+		context.onCleanup(function()
+			button:Destroy()
+		end)
+		local connection = button.Activated:Connect(function()
+			if sound.IsPlaying then
+				sound:Stop()
+				button.Text = "Click to play audio"
+			else
+				sound:Play()
+				button.Text = "Click to stop audio"
+			end
+		end)
+		context.onCleanup(function()
+			connection:Disconnect()
+		end)
+		context.report(source.SoundId)
+	end,
+})
+Registry.Register({
+	id = "fallback",
+	label = "Instance details",
+	supports = function(_)
+		return true
+	end,
+	mount = function(context)
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Color3.fromRGB(128, 128, 128)
+		label.TextSize = 16
+		label.TextWrapped = true
+		label.Text =
+			`{context.source.ClassName}\n{#context.source:GetChildren()} children\n{#context.source:GetDescendants()} descendants`
+		label.Parent = context.host
+		context.onCleanup(function()
+			label:Destroy()
+		end)
+		context.report("No visual renderer registered for this class")
+	end,
+})
+return Registry

@@ -1,0 +1,22 @@
+{
+  "name": "AssetOrganizer",
+  "globIgnorePaths": [
+    "**/*.story.luau",
+    "**/*.storybook.luau"
+  ],
+  "tree": {
+    "$className": "Model",
+    "Packages": {
+      "$path": "Packages"
+    },
+    "Source": {
+      "$path": "src"
+    },
+    "Main": {
+      "$path": "entry/Organizer.server.luau"
+    },
+    "ThirdPartyNotices": {
+      "$path": "THIRD_PARTY_NOTICES.txt"
+    }
+  }
+}

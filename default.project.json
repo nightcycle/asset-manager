@@ -1,0 +1,27 @@
+{
+  "name": "AssetToolsDevelopment",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "AssetTools": {
+        "$className": "Folder",
+        "Packages": {
+          "$path": "Packages"
+        },
+        "DevPackages": {
+          "$path": "DevPackages"
+        },
+        "Source": {
+          "$path": "src"
+        },
+        "Stories": {
+          "$path": "stories"
+        },
+        "Tests": {
+          "$path": "tests/studio"
+        }
+      }
+    }
+  }
+}

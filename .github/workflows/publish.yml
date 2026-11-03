@@ -1,0 +1,56 @@
+name: Publish plugins
+on:
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: Plugin to publish
+        required: true
+        type: choice
+        options: [previewer, organizer, both]
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: publish-asset-tools
+  cancel-in-progress: false
+jobs:
+  validate:
+    uses: ./.github/workflows/ci.yml
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: roblox-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: asset-tools
+          path: build
+      - name: Publish selected plugin versions
+        env:
+          TARGET: ${{ inputs.plugin || 'both' }}
+          ROBLOX_OPEN_CLOUD_API_KEY: ${{ secrets.ROBLOX_OPEN_CLOUD_API_KEY }}
+          PUBLISH_UNIVERSE_ID: ${{ vars.PUBLISH_UNIVERSE_ID }}
+          PUBLISH_PLACE_ID: ${{ vars.PUBLISH_PLACE_ID }}
+          ROBLOX_CREATOR_ID: ${{ vars.ROBLOX_CREATOR_ID }}
+          ROBLOX_CREATOR_TYPE: ${{ vars.ROBLOX_CREATOR_TYPE }}
+          PREVIEWER_PLUGIN_ID: ${{ vars.PREVIEWER_PLUGIN_ID }}
+          ORGANIZER_PLUGIN_ID: ${{ vars.ORGANIZER_PLUGIN_ID }}
+        run: |
+          if [[ "$TARGET" == "previewer" || "$TARGET" == "both" ]]; then
+            python scripts/publish.py previewer --dry-run
+          fi
+          if [[ "$TARGET" == "organizer" || "$TARGET" == "both" ]]; then
+            python scripts/publish.py organizer --dry-run
+          fi
+          if [[ "$TARGET" == "previewer" || "$TARGET" == "both" ]]; then
+            python scripts/publish.py previewer
+          fi
+          if [[ "$TARGET" == "organizer" || "$TARGET" == "both" ]]; then
+            python scripts/publish.py organizer
+          fi

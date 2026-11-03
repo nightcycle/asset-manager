@@ -1,0 +1,7 @@
+/Packages/
+/DevPackages/
+/build/
+/sourcemap.json
+/.tools/
+__pycache__/
+*.pyc
