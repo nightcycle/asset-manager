@@ -37,7 +37,8 @@ TEST IN EDIT MODE (no Play button required):
     all three build loudness graphs. The overlaid pause icon mutes a sound;
     its graph keeps running. Play restarts at zero and transfers audible output.
 11. Resize the previewer tall/narrow or wide/short with several assets selected
-    to check that the grid always chooses the most square slots. Normal dock
+    to check that every row is complete, including on the last page. Cell
+    proportions adapt to fill the page; test 7, 10, and 14 selections. Normal dock
     sizes target sixteen items per page; settings can raise or lower the limits.
 12. Select Animation_BoneStandIn for a non-R15 animation, or
     Keyframe_StandalonePose or Pose_StandaloneBranch for authored static poses.

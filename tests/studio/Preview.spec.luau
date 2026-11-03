@@ -35,7 +35,22 @@ return function(): number
 	columns, rows = Pagination.Grid(16, 300, 1200)
 	check(columns == 2 and rows == 8, "Tall panel forced sixteen previews into a short strip")
 	columns, rows = Pagination.Grid(7, 720, 360)
-	check(columns == 4 and rows == 2, "Square cells were sacrificed to avoid an empty slot")
+	check(columns == 7 and rows == 1, "Prime preview count left an incomplete row")
+	columns, rows = Pagination.Grid(7, 360, 720)
+	check(columns == 1 and rows == 7, "Portrait prime count should fill a vertical column")
+	columns, rows = Pagination.Grid(14, 720, 360)
+	check(columns == 7 and rows == 2, "Fourteen previews should use two complete rows")
+	columns, rows = Pagination.Grid(0, 0, 0)
+	check(columns == 1 and rows == 1, "Empty preview layout is invalid")
+	for _, bounds in { Vector2.new(240, 960), Vector2.new(500, 500), Vector2.new(960, 240) } do
+		for items = 1, 64 do
+			columns, rows = Pagination.Grid(items, bounds.X, bounds.Y)
+			check(columns * rows == items, "Preview layout contains unused slots")
+		end
+	end
+	local _, _, lastFirst, lastLast = Pagination.Page(30, 2, 16)
+	columns, rows = Pagination.Grid(lastLast - lastFirst + 1, 720, 360)
+	check(columns == 7 and rows == 2, "The last page should also use complete rows")
 	check(Settings.Default(false).maxItems == 16, "Default preview target is not sixteen")
 	check(Pagination.PreviewCapacity(500, 360, 1, 16) == 16, "Normal dock did not reach sixteen previews")
 	check(Pagination.PreviewCapacity(200, 200, 1, 16) == 4, "Small dock did not reduce preview capacity")

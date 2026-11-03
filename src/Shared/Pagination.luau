@@ -23,17 +23,17 @@ function Pagination.Page(count: number, requested: number, capacity: number): (n
 	return page, pages, (page - 1) * capacity + 1, math.min(count, page * capacity)
 end
 function Pagination.Grid(count: number, width: number, height: number): (number, number)
-	count = math.max(1, count)
+	count = math.max(1, math.floor(count))
 	local aspect = math.max(width, 1) / math.max(height, 1)
 	local bestColumns, bestRows, bestScore = 1, count, math.huge
 	for columns = 1, count do
-		local rows = math.ceil(count / columns)
+		-- Only consider complete rows; choose the closest-to-square cells within those layouts.
+		if count % columns ~= 0 then
+			continue
+		end
+		local rows = count / columns
 		local score = math.abs(math.log(aspect * rows / columns))
-		-- Squareness takes priority; only use empty slots to break a tie.
-		if
-			score < bestScore - 0.000001
-			or (math.abs(score - bestScore) < 0.000001 and columns * rows < bestColumns * bestRows)
-		then
+		if score < bestScore - 0.000001 then
 			bestColumns, bestRows, bestScore = columns, rows, score
 		end
 	end
