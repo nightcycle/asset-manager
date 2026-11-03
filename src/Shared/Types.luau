@@ -37,12 +37,23 @@ export type Annotation = { path: string, tags: { string }, attributes: { [string
 export type TagCount = { name: string, count: number }
 export type Catalog = { tags: { TagCount }, attributes: { [string]: { Value } } }
 export type Background = "Studio" | "Dark" | "Light"
-export type PreviewOptions = { background: Background, playing: boolean, mirrorLighting: boolean, thumbnail: boolean? }
+export type ScaleMode = "Fit" | "Fill"
+export type PreviewOptions = {
+	background: Background,
+	playing: boolean,
+	mirrorLighting: boolean,
+	thumbnail: boolean?,
+	scaleMode: ScaleMode?,
+	autoPlay: boolean?,
+}
 export type PreviewStatusKind = "info" | "loading" | "error"
+export type PreviewPalette = { text: Color3, accent: Color3, button: Color3, buttonText: Color3 }
 export type PreviewContext = {
 	host: Frame,
 	source: Instance,
 	options: PreviewOptions,
+	palette: PreviewPalette?,
+	play: (() -> ())?,
 	report: (string, PreviewStatusKind?) -> (),
 	onCleanup: (() -> ()) -> (),
 	isAlive: () -> boolean,

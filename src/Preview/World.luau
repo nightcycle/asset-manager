@@ -2,6 +2,7 @@
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local Types = require(script.Parent.Parent.Shared.Types)
+local Framing = require(script.Parent.Framing)
 local World = {}
 
 function World.Sanitize(root: Instance)
@@ -21,7 +22,7 @@ function World.Sanitize(root: Instance)
 	end
 end
 
-function World.Mount(context: Types.PreviewContext, model: Model): ViewportFrame
+function World.Mount(context: Types.PreviewContext, model: Model, framePoints: { Vector3 }?): ViewportFrame
 	local viewport = Instance.new("ViewportFrame")
 	viewport.Size = UDim2.fromScale(1, 1)
 	viewport.BackgroundTransparency = 1
@@ -35,21 +36,23 @@ function World.Mount(context: Types.PreviewContext, model: Model): ViewportFrame
 	model.Parent = world
 	local camera = Instance.new("Camera")
 	camera.FieldOfView = 40
+	camera.FieldOfViewMode = Enum.FieldOfViewMode.Vertical
 	camera.Parent = viewport
 	viewport.CurrentCamera = camera
-	local box, size = model:GetBoundingBox()
-	local center = box.Position
-	local radius = math.max(size.Magnitude * 0.5, 0.5)
+	local points = framePoints or Framing.Points(model)
 	local yaw, pitch, zoom = math.rad(35), math.rad(18), 1
 	local dragging = false
 	local last = Vector2.zero
 	local function fit()
 		local pixels = viewport.AbsoluteSize
-		local aspect = math.max(0.1, pixels.X / math.max(pixels.Y, 1))
-		local halfFov = math.atan(math.tan(math.rad(camera.FieldOfView / 2)) * math.min(aspect, 1))
-		local distance = radius / math.sin(halfFov) * 1.12 * zoom
+		if pixels.X <= 0 or pixels.Y <= 0 then
+			return
+		end
+		local aspect = pixels.X / pixels.Y
 		local direction = Vector3.new(math.sin(yaw) * math.cos(pitch), math.sin(pitch), math.cos(yaw) * math.cos(pitch))
-		camera.CFrame = CFrame.lookAt(center + direction * distance, center)
+		local center, distance = Framing.Solve(points, direction, aspect, camera.FieldOfView, context.options.scaleMode)
+		camera.CFrame = CFrame.lookAt(center + direction * distance * zoom, center)
+		camera.Focus = CFrame.new(center)
 	end
 	local function connect(signal: RBXScriptSignal, callback: (...any) -> ())
 		local connection = signal:Connect(callback)
@@ -58,6 +61,13 @@ function World.Mount(context: Types.PreviewContext, model: Model): ViewportFrame
 		end)
 	end
 	connect(viewport:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	local mode = context.options.scaleMode
+	connect(RunService.Heartbeat, function()
+		if mode ~= context.options.scaleMode then
+			mode = context.options.scaleMode
+			fit()
+		end
+	end)
 	if not context.options.thumbnail then
 		connect(viewport.InputBegan, function(input: InputObject)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -175,75 +185,4 @@ function World.Geometry(context: Types.PreviewContext)
 	end
 end
 
-function World.Animation(context: Types.PreviewContext)
-	local animation = context.source
-	assert(animation:IsA("Animation"), "Expected Animation")
-	context.report("Loading R15 rig and animation…", "loading")
-	local description = Instance.new("HumanoidDescription")
-	context.onCleanup(function()
-		description:Destroy()
-	end)
-	local rig = game:GetService("Players")
-		:CreateHumanoidModelFromDescriptionAsync(description, Enum.HumanoidRigType.R15)
-	context.onCleanup(function()
-		rig:Destroy()
-	end)
-	if not context.isAlive() then
-		return
-	end
-	World.Sanitize(rig)
-	World.Mount(context, rig)
-	local humanoid = rig:FindFirstChildOfClass("Humanoid")
-	assert(humanoid, "R15 rig has no Humanoid")
-	local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator")
-	animator.Parent = humanoid
-	local track = animator:LoadAnimation(animation)
-	context.onCleanup(function()
-		track:Stop(0)
-		track:Destroy()
-	end)
-	track.Looped = true
-	track:Play(0)
-	local joints: { Motor6D } = {}
-	for _, instance in rig:GetDescendants() do
-		if instance:IsA("Motor6D") then
-			table.insert(joints, instance)
-		end
-	end
-	local root = rig:FindFirstChild("HumanoidRootPart")
-	local function pose(part: BasePart)
-		for _, joint in joints do
-			local child = joint.Part1
-			if joint.Part0 == part and child then
-				child.CFrame = part.CFrame * joint.C0 * joint.Transform * joint.C1:Inverse()
-				pose(child)
-			end
-		end
-	end
-	local elapsed = 0
-	local lastReport = -1
-	local connection = RunService.Heartbeat:Connect(function(dt)
-		elapsed += dt
-		if context.options.playing then
-			animator:StepAnimations(math.min(dt, 0.1))
-		end
-		if root and root:IsA("BasePart") then
-			pose(root)
-		end
-		if elapsed - lastReport < 0.25 then
-			return
-		end
-		lastReport = elapsed
-		if track.Length > 0 then
-			context.report(
-				`R15 · {string.format("%.1f", track.TimePosition)} / {string.format("%.1f", track.Length)} s`
-			)
-		elseif elapsed > 10 then
-			context.report("Animation unavailable: check asset permissions and R15 compatibility", "error")
-		end
-	end)
-	context.onCleanup(function()
-		connection:Disconnect()
-	end)
-end
 return World

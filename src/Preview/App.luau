@@ -10,11 +10,16 @@ local useSelection = require(script.Parent.Parent.UI.useSelection)
 local usePreviewSelection = require(script.Parent.Parent.UI.usePreviewSelection)
 local Types = require(script.Parent.Parent.Shared.Types)
 local Pagination = require(script.Parent.Parent.Shared.Pagination)
+local Settings = require(script.Parent.Parent.Shared.ViewSettings)
 local e = React.createElement
 export type Props = {
 	selection: { Instance }?,
 	initialBackground: Types.Background?,
 	onBackground: ((Types.Background) -> ())?,
+	initialScaleMode: Types.ScaleMode?,
+	onScaleMode: ((Types.ScaleMode) -> ())?,
+	initialSettings: Settings.Settings?,
+	onSettings: ((Settings.Settings) -> ())?,
 }
 
 return function(props: Props): React.ReactElement
@@ -22,22 +27,41 @@ return function(props: Props): React.ReactElement
 	local selected = useSelection(props.selection)
 	local selection = usePreviewSelection(selected)
 	local page, setPage = React.useState(1)
-	local capacity, setCapacity = React.useState(4)
+	local settings, setSettings = React.useState(props.initialSettings or Settings.Default(false))
 	local options, setOptions = React.useState({
 		background = props.initialBackground or "Studio",
-		playing = true,
+		playing = settings.autoPlay,
+		autoPlay = settings.autoPlay,
 		mirrorLighting = true,
+		scaleMode = props.initialScaleMode or "Fit",
 	} :: Types.PreviewOptions)
 	local menuOpen, setMenuOpen = React.useState(false)
 	local hovered, setHovered = React.useState(false)
 	local size, setSize = React.useState(Vector2.new(500, 400))
+	local capacity =
+		Pagination.Capacity(size.X, math.max(1, size.Y - 40), 180, 180, settings.minItems, settings.maxItems)
+	local previousCapacity = React.useRef(capacity)
 	local current, pages, first, last = Pagination.Page(#selection, page, capacity)
 	local count = math.max(0, last - first + 1)
-	local columns, rows = Pagination.Grid(count, size.X, size.Y)
+	local columns, rows = Pagination.Grid(count, size.X, size.Y - (if pages > 1 then 40 else 0))
 	local gutter = if count > 1 then 2 else 0
 	React.useEffect(function()
 		setPage(1)
-	end, { selection, capacity } :: { unknown })
+	end, { selection } :: { unknown })
+	React.useEffect(function()
+		setOptions(function(previous)
+			local updated = table.clone(previous)
+			updated.playing = updated.autoPlay ~= false
+			return updated
+		end)
+	end, { selection, current } :: { unknown })
+	React.useEffect(function()
+		local previous = previousCapacity.current
+		previousCapacity.current = capacity
+		setPage(function(value)
+			return math.floor((value - 1) * previous / capacity) + 1
+		end)
+	end, { capacity })
 	local cards: UI.Children = {}
 	for index = first, last do
 		local offset = index - first
@@ -45,6 +69,11 @@ return function(props: Props): React.ReactElement
 			source = selection[index],
 			options = options,
 			minimal = true,
+			onPlay = function()
+				local updated = table.clone(options)
+				updated.playing = true
+				setOptions(updated)
+			end,
 			size = UDim2.new(1 / columns, -gutter * 2, 1 / rows, -gutter * 2),
 			position = UDim2.new((offset % columns) / columns, gutter, math.floor(offset / columns) / rows, gutter),
 		})
@@ -68,6 +97,9 @@ return function(props: Props): React.ReactElement
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
 			ClipsDescendants = true,
+			[React.Change.AbsoluteSize] = function(frame: Frame)
+				setSize(frame.AbsoluteSize)
+			end,
 			[React.Event.MouseEnter] = function()
 				setHovered(true)
 			end,
@@ -78,9 +110,6 @@ return function(props: Props): React.ReactElement
 			Grid = e("Frame", {
 				Size = UDim2.new(1, 0, 1, if pages > 1 then -40 else 0),
 				BackgroundTransparency = 1,
-				[React.Change.AbsoluteSize] = function(frame: Frame)
-					setSize(frame.AbsoluteSize)
-				end,
 			}, cards),
 			Pager = if pages > 1
 				then e("Frame", {
@@ -108,11 +137,25 @@ return function(props: Props): React.ReactElement
 				then e(PreviewMenu, {
 					options = options,
 					capacity = capacity,
-					changeCapacity = setCapacity,
+					settings = settings,
+					changeSettings = function(value: Settings.Settings)
+						setSettings(value)
+						if value.autoPlay ~= settings.autoPlay then
+							local updated = table.clone(options)
+							updated.autoPlay, updated.playing = value.autoPlay, value.autoPlay
+							setOptions(updated)
+						end
+						if props.onSettings then
+							props.onSettings(value)
+						end
+					end,
 					changeOptions = function(updated: Types.PreviewOptions)
 						setOptions(updated)
 						if updated.background ~= options.background and props.onBackground then
 							props.onBackground(updated.background)
+						end
+						if updated.scaleMode ~= options.scaleMode and props.onScaleMode then
+							props.onScaleMode(updated.scaleMode or "Fit")
 						end
 					end,
 					close = function()

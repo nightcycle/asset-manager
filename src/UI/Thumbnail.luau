@@ -4,7 +4,7 @@ local Icons = require(script.Parent.Icons)
 local PreviewCard = require(script.Parent.PreviewCard)
 local Registry = require(script.Parent.Parent.Preview.Registry)
 local e = React.createElement
-export type Props = { source: Instance?, active: boolean }
+export type Props = { source: Instance?, active: boolean, autoPlay: boolean? }
 return function(props: Props): React.ReactElement
 	local source = props.source
 	local renderer = if source then Registry.Resolve(source).id else "fallback"
@@ -12,7 +12,7 @@ return function(props: Props): React.ReactElement
 		then "volume_up"
 		elseif renderer == "animation" then "movie"
 		elseif renderer == "image" or renderer == "particles" then "image"
-		elseif renderer == "geometry" then "view_in_ar"
+		elseif renderer == "geometry" or renderer == "clothing" then "view_in_ar"
 		else "insert_drive_file"
 	local fallback = e(Icons.Image, { name = icon, size = UDim2.fromScale(1, 1) })
 	return e("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true }, {
@@ -25,7 +25,13 @@ return function(props: Props): React.ReactElement
 				minimal = true,
 				thumbnail = true,
 				fallbackIcon = icon,
-				options = { background = "Studio", playing = true, mirrorLighting = true, thumbnail = true },
+				options = {
+					background = "Studio",
+					playing = props.autoPlay ~= false,
+					autoPlay = props.autoPlay,
+					mirrorLighting = true,
+					thumbnail = true,
+				},
 			})
 			else fallback,
 	})

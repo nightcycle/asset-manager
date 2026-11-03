@@ -226,7 +226,55 @@ example(sound, "Audio")
 local gui = Instance.new("TextLabel")
 gui.Name, gui.Text, gui.BackgroundColor3 = "GUI_Label", "A GUI asset preview", Color3.fromRGB(44, 64, 90)
 gui.TextColor3, gui.TextSize, gui.Size = Color3.fromRGB(240, 246, 255), 24, UDim2.fromOffset(240, 80)
+gui.Visible = false
 example(gui, "GUI")
+local screen = Instance.new("ScreenGui")
+screen.Name, screen.Enabled = "GUI_DisabledScreen", false
+local screenLabel = gui:Clone()
+assert(screenLabel)
+screenLabel.Visible = true
+screenLabel.AnchorPoint, screenLabel.Position = roblox.Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
+screenLabel.Text, screenLabel.Parent = "A disabled screen, previewed visibly", screen
+example(screen, "GUI")
+local localClip = Instance.new("KeyframeSequence")
+localClip.Name = "Animation_LocalR15Wave"
+for _, time in { 0, 0.5, 1 } do
+	local key = Instance.new("Keyframe")
+	key.Time, key.Parent = time, localClip
+	local pose = Instance.new("Pose")
+	pose.Name, pose.Weight, pose.EasingStyle = "RightUpperArm", 1, Enum.PoseEasingStyle.Linear
+	pose.CFrame = CFrame.Angles(0, 0, if time == 0.5 then math.rad(110) else 0)
+	pose.Parent = key
+end
+example(localClip, "Animation")
+local bones = Instance.new("KeyframeSequence")
+bones.Name = "Animation_BoneStandIn"
+for _, time in { 0, 0.5, 1 } do
+	local key = Instance.new("Keyframe")
+	key.Time, key.Parent = time, bones
+	local rootPose = Instance.new("Pose")
+	rootPose.Name, rootPose.Weight, rootPose.Parent = "CreatureRoot", 1, key
+	for index = 1, 3 do
+		local limb = Instance.new("Pose")
+		limb.Name, limb.Weight, limb.Parent = "Limb" .. tostring(index), 1, rootPose
+		limb.CFrame = CFrame.Angles(0, 0, if time == 0.5 then (index - 2) * math.pi / 3 else 0)
+		limb.EasingStyle = Enum.PoseEasingStyle.Linear
+		local tip = Instance.new("Pose")
+		tip.Name, tip.Weight, tip.Parent = "Tip", 1, limb
+	end
+end
+example(bones, "Animation")
+local poseExample = bones:GetChildren()[2]:Clone()
+assert(poseExample)
+poseExample.Name = "Keyframe_StandalonePose"
+example(poseExample, "Animation")
+local graphic = Instance.new("ShirtGraphic")
+graphic.Name, graphic.Graphic = "Clothing_TShirt", image.Image
+example(graphic, "Geometry")
+local shirt, pants = Instance.new("Shirt"), Instance.new("Pants")
+shirt.Name, pants.Name = "Clothing_Shirt_SetTemplate", "Clothing_Pants_SetTemplate"
+example(shirt, "Geometry")
+example(pants, "Geometry")
 local fallback = Instance.new("StringValue")
 fallback.Name = "Fallback_StringValue"
 example(fallback, "Other")

@@ -23,7 +23,14 @@ function Image.Mount(context: Types.PreviewContext)
 	local label = Instance.new("ImageLabel")
 	label.BackgroundTransparency = 1
 	label.Size = UDim2.fromScale(1, 1)
-	label.ScaleType = Enum.ScaleType.Fit
+	local function scale()
+		label.ScaleType = if context.options.scaleMode == "Fill" then Enum.ScaleType.Crop else Enum.ScaleType.Fit
+	end
+	scale()
+	local scaling = RunService.Heartbeat:Connect(scale)
+	context.onCleanup(function()
+		scaling:Disconnect()
+	end)
 	label.Image = Image.Asset(source)
 	if source:IsA("Decal") then
 		label.ImageColor3 = source.Color3

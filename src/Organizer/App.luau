@@ -20,6 +20,9 @@ local Navigation = require(script.Parent.Navigation)
 local Hierarchy = require(script.Parent.Parent.Shared.Hierarchy)
 local Icons = require(script.Parent.Parent.UI.Icons)
 local Breadcrumbs = require(script.Parent.Parent.UI.Breadcrumbs)
+local Pagination = require(script.Parent.Parent.Shared.Pagination)
+local Settings = require(script.Parent.Parent.Shared.ViewSettings)
+local SettingsEditor = require(script.Parent.Parent.UI.ViewSettings)
 local e = React.createElement
 export type Props = {
 	database: Database.Database,
@@ -28,10 +31,20 @@ export type Props = {
 	bridgeParent: Instance?,
 	initialDrawer: string?,
 	initialScope: string?,
+	initialSettings: Settings.Settings?,
+	onSettings: ((Settings.Settings) -> ())?,
 }
 
 return function(props: Props): React.ReactElement
 	local database = props.database
+	local settings, setSettings = React.useState(props.initialSettings or Settings.Default(true))
+	local size, setSize = React.useState(Vector2.new(480, 640))
+	local function changeSettings(value: Settings.Settings)
+		setSettings(value)
+		if props.onSettings then
+			props.onSettings(value)
+		end
+	end
 	local rawSelection = useSelection(props.selection)
 	local selection = React.useMemo(function(): { Instance }
 		local assets: { Instance } = {}
@@ -57,10 +70,29 @@ return function(props: Props): React.ReactElement
 	local filterState, setFilterState = React.useState({ value = nil } :: { value: Types.Value? })
 	local filterValue = filterState.value
 	local searchView = search ~= "" or #tags > 0 or (filterName ~= "" and filterValue ~= nil)
+	local grid = settings.viewMode == "Grid"
+	local gridHeight = if searchView then 216 else 184
+	local gridColumns = math.max(1, math.floor((size.X - 26 + 8) / 152))
+	local capacity = Pagination.Capacity(
+		math.max(size.X - 26 + 8, 1),
+		math.max(size.Y - 80 - 94 - 20 + 8, 1),
+		if grid then 152 else math.max(size.X, 1),
+		if grid then gridHeight + 8 else 64,
+		settings.minItems,
+		settings.maxItems
+	)
 	local function setFilterValue(value: Types.Value?)
 		setFilterState({ value = value })
 	end
 	local page, setPage = React.useState(1)
+	local previousCapacity = React.useRef(capacity)
+	React.useEffect(function()
+		local previous = previousCapacity.current
+		previousCapacity.current = capacity
+		setPage(function(value)
+			return math.floor((value - 1) * previous / capacity) + 1
+		end)
+	end, { capacity })
 	local records, setRecords = React.useState({} :: { Types.Record })
 	local catalog, setCatalog = React.useState(Catalog.Empty())
 	local total, setTotal = React.useState(0)
@@ -151,59 +183,62 @@ return function(props: Props): React.ReactElement
 	React.useEffect(function()
 		setPage(1)
 	end, { scope, search, tags, filterName, filterState } :: { unknown })
-	React.useEffect(function()
-		local cancelled = false
-		setLoading(true)
-		task.delay(0.25, function()
-			if cancelled then
-				return
-			end
-			local ok, message = pcall(function(): string?
-				local attributes: { [string]: Types.Value } = {}
-				if filterName ~= "" and filterValue ~= nil then
-					attributes[filterName] = filterValue
-				end
-				local result, count, ambiguous, discovered = database.Query({
-					scope = scope,
-					browse = true,
-					recursive = searchView,
-					search = search,
-					tags = tags,
-					attributes = attributes,
-					offset = (page - 1) * 50,
-					limit = 50,
-				}, function()
-					return cancelled
-				end)
+	React.useEffect(
+		function()
+			local cancelled = false
+			setLoading(true)
+			task.delay(0.25, function()
 				if cancelled then
+					return
+				end
+				local ok, message = pcall(function(): string?
+					local attributes: { [string]: Types.Value } = {}
+					if filterName ~= "" and filterValue ~= nil then
+						attributes[filterName] = filterValue
+					end
+					local result, count, ambiguous, discovered = database.Query({
+						scope = scope,
+						browse = true,
+						recursive = searchView,
+						search = search,
+						tags = tags,
+						attributes = attributes,
+						offset = (page - 1) * capacity,
+						limit = capacity,
+					}, function()
+						return cancelled
+					end)
+					if cancelled then
+						return nil
+					end
+					if page > math.max(1, math.ceil(count / capacity)) then
+						setPage(math.max(1, math.ceil(count / capacity)))
+					end
+					setRecords(result)
+					setTotal(count)
+					setCatalog(discovered)
+					setQueryError("")
+					if ambiguous > 0 then
+						setStatus(`Skipped {ambiguous} ambiguous paths; rename duplicate siblings to address them.`)
+					end
 					return nil
+				end)
+				if not cancelled then
+					setLoading(false)
+					if not ok then
+						setQueryError(tostring(message))
+						setRecords({})
+						setTotal(0)
+						setCatalog(Catalog.Empty())
+					end
 				end
-				if page > math.max(1, math.ceil(count / 50)) then
-					setPage(math.max(1, math.ceil(count / 50)))
-				end
-				setRecords(result)
-				setTotal(count)
-				setCatalog(discovered)
-				setQueryError("")
-				if ambiguous > 0 then
-					setStatus(`Skipped {ambiguous} ambiguous paths; rename duplicate siblings to address them.`)
-				end
-				return nil
 			end)
-			if not cancelled then
-				setLoading(false)
-				if not ok then
-					setQueryError(tostring(message))
-					setRecords({})
-					setTotal(0)
-					setCatalog(Catalog.Empty())
-				end
+			return function()
+				cancelled = true
 			end
-		end)
-		return function()
-			cancelled = true
-		end
-	end, { database, scope, search, tags, filterName, filterState, searchView, page, revision } :: { unknown })
+		end,
+		{ database, scope, search, tags, filterName, filterState, searchView, page, capacity, revision } :: { unknown }
+	)
 	React.useEffect(function(): (() -> ())?
 		if not bridgeEnabled or not props.bridgeParent then
 			return nil
@@ -248,6 +283,8 @@ return function(props: Props): React.ReactElement
 			source = if resolved and record.kind == "asset" then source else nil,
 			thumbnails = not drawerOpen,
 			showPath = searchView,
+			grid = grid,
+			autoPlay = settings.autoPlay,
 			selected = record.kind == "asset" and selectedPaths[record.path] == true,
 			order = index,
 			click = function()
@@ -297,7 +334,9 @@ return function(props: Props): React.ReactElement
 		table.insert(valueChoices, { id = Catalog.ValueId(value), label = Catalog.ValueLabel(value) })
 	end
 	local drawerBody: React.ReactNode
-	if view == "Schema" then
+	if view == "Settings" then
+		drawerBody = e(SettingsEditor, { value = settings, change = changeSettings, organizer = true })
+	elseif view == "Schema" then
 		drawerBody = e(SchemaEditor, {
 			schema = schema,
 			catalog = catalog,
@@ -315,7 +354,11 @@ return function(props: Props): React.ReactElement
 		drawerBody = e(UI.Column, nil, {
 			Preview = if preview
 				then e("Frame", { Size = UDim2.new(1, 0, 0, 260), BackgroundTransparency = 1, LayoutOrder = 1 }, {
-					App = e(Previewer, { selection = previewSelection }),
+					App = e(Previewer, {
+						key = tostring(settings.autoPlay),
+						selection = previewSelection,
+						initialSettings = Settings.Decode({ autoPlay = settings.autoPlay }, false),
+					}),
 				})
 				else nil,
 			Edit = e(UI.Column, { order = 2 }, {
@@ -482,14 +525,18 @@ return function(props: Props): React.ReactElement
 				else nil,
 		})
 	end
-	local pages = math.max(1, math.ceil(total / 50))
+	local pages = math.max(1, math.ceil(total / capacity))
 	local footerHeight = if pages > 1 then 94 else 58
 	local activeFilters = #tags + (if filterName ~= "" and filterValue ~= nil then 1 else 0)
 	local notice = if schemaResult.error ~= ""
 		then schemaResult.error
 		elseif queryError ~= "" then queryError
 		else status
-	return e(Studio.Background, nil, {
+	return e(Studio.Background, {
+		[React.Change.AbsoluteSize] = function(frame: Frame)
+			setSize(frame.AbsoluteSize)
+		end,
+	}, {
 		Toolbar = e(
 			"Frame",
 			{ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 28), BackgroundTransparency = 1 },
@@ -560,7 +607,11 @@ return function(props: Props): React.ReactElement
 			Size = UDim2.new(1, 0, 1, -80 - footerHeight),
 			BackgroundTransparency = 1,
 		}, {
-			Rows = e(UI.Scroll, { key = scope .. ":" .. tostring(page) }, resultRows),
+			Rows = e(UI.Scroll, {
+				key = scope .. ":" .. tostring(page) .. settings.viewMode,
+				gridColumns = if grid and #records > 0 then gridColumns else nil,
+				cellHeight = gridHeight,
+			}, resultRows),
 		}),
 		Footer = e("Frame", {
 			Position = UDim2.new(0, 8, 1, -footerHeight),
@@ -607,6 +658,7 @@ return function(props: Props): React.ReactElement
 						{ id = "Selection", label = "Selected instances" },
 						{ id = "Schema", label = "Tag and attribute schema" },
 						{ id = "Review", label = `Review proposals ({#proposals})` },
+						{ id = "Settings", label = "View and playback settings" },
 					},
 					selected = view,
 					change = function(value: string?)

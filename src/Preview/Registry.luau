@@ -3,6 +3,10 @@ local Types = require(script.Parent.Parent.Shared.Types)
 local World = require(script.Parent.World)
 local Image = require(script.Parent.Image)
 local Particles = require(script.Parent.Particles)
+local Gui = require(script.Parent.Gui)
+local Animation = require(script.Parent.Animation)
+local Audio = require(script.Parent.Audio)
+local Clothing = require(script.Parent.Clothing)
 local Registry = {}
 local renderers: { Types.Renderer } = {}
 function Registry.Register(renderer: Types.Renderer, priority: number?)
@@ -30,11 +34,19 @@ function Registry.Resolve(source: Instance): Types.Renderer
 end
 Registry.Register({
 	id = "animation",
-	label = "R15 animation",
+	label = "Animation / pose",
 	supports = function(i)
-		return i:IsA("Animation")
+		return i:IsA("Animation") or i:IsA("AnimationClip") or i:IsA("Keyframe")
 	end,
-	mount = World.Animation,
+	mount = Animation.Mount,
+})
+Registry.Register({
+	id = "clothing",
+	label = "Classic clothing",
+	supports = function(i)
+		return i:IsA("Shirt") or i:IsA("Pants") or i:IsA("ShirtGraphic")
+	end,
+	mount = Clothing.Mount,
 })
 Registry.Register({
 	id = "particles",
@@ -48,7 +60,8 @@ Registry.Register({
 	id = "image",
 	label = "Image / flipbook",
 	supports = function(i)
-		return i:IsA("Decal") or i:IsA("ImageLabel") or i:IsA("ImageButton")
+		return i:IsA("Decal")
+			or ((i:IsA("ImageLabel") or i:IsA("ImageButton")) and i:GetAttribute("Preview_FlipbookColumns") ~= nil)
 	end,
 	mount = Image.Mount,
 })
@@ -71,26 +84,7 @@ Registry.Register({
 	supports = function(i)
 		return i:IsA("GuiObject") or i:IsA("LayerCollector")
 	end,
-	mount = function(context)
-		local clone = context.source:Clone()
-		assert(clone, "GUI is not Archivable")
-		context.onCleanup(function()
-			clone:Destroy()
-		end)
-		World.Sanitize(clone)
-		if clone:IsA("GuiObject") then
-			clone.AnchorPoint = Vector2.zero
-			clone.Position = UDim2.fromScale(0, 0)
-			clone.Size = UDim2.fromScale(1, 1)
-			clone.Visible = true
-			clone.Parent = context.host
-		else
-			for _, child in clone:GetChildren() do
-				child.Parent = context.host
-			end
-		end
-		context.report("Static GUI preview · scripts are excluded")
-	end,
+	mount = Gui.Mount,
 })
 Registry.Register({
 	id = "sound",
@@ -98,42 +92,7 @@ Registry.Register({
 	supports = function(i)
 		return i:IsA("Sound")
 	end,
-	mount = function(context)
-		local source = context.source
-		assert(source:IsA("Sound"))
-		local sound = source:Clone()
-		assert(sound, "Sound is not Archivable")
-		sound.Playing = false
-		sound.Volume = math.min(sound.Volume, 0.5)
-		sound.Looped = true
-		sound.Parent = game:GetService("SoundService")
-		context.onCleanup(function()
-			sound:Destroy()
-		end)
-		local button = Instance.new("TextButton")
-		button.Size = UDim2.fromScale(1, 1)
-		button.BackgroundTransparency = 1
-		button.TextColor3 = Color3.fromRGB(128, 128, 128)
-		button.Text = "Click to play audio"
-		button.TextSize = 16
-		button.Parent = context.host
-		context.onCleanup(function()
-			button:Destroy()
-		end)
-		local connection = button.Activated:Connect(function()
-			if sound.IsPlaying then
-				sound:Stop()
-				button.Text = "Click to play audio"
-			else
-				sound:Play()
-				button.Text = "Click to stop audio"
-			end
-		end)
-		context.onCleanup(function()
-			connection:Disconnect()
-		end)
-		context.report(source.SoundId)
-	end,
+	mount = Audio.Mount,
 })
 Registry.Register({
 	id = "fallback",

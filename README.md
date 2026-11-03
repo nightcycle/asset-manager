@@ -38,7 +38,7 @@ rojo build previewer.project.json --plugin AssetPreviewer.rbxm
 rojo build organizer.project.json --plugin AssetOrganizer.rbxm
 ```
 
-Enable each plugin from the **Asset Tools** toolbar. Their stable widget IDs and `overridePreviousState=false` let Studio restore docking, size, and open/closed state across sessions. Closing a widget unmounts its UI and releases preview resources; the bridge is also stopped. Previewer's background preference is saved using plugin settings.
+Enable each plugin from the **Asset Tools** toolbar. Their stable widget IDs and `overridePreviousState=false` let Studio restore docking, size, and open/closed state across sessions. Closing a widget unmounts its UI and releases preview resources; the bridge is also stopped. Plugin settings remember background, Fit/Fill, autoplay, page limits, and Organizer's List/Grid preference.
 
 ## Preview behavior
 
@@ -46,17 +46,25 @@ Enable each plugin from the **Asset Tools** toolbar. Their stable widget IDs and
 | --- | --- |
 | Service, Folder, Configuration | Expand into children; nested containers expand recursively |
 | BasePart, Model, Accessory, Tool, SpecialMesh | Sanitized clone in a WorldModel/ViewportFrame; drag to orbit and scroll to zoom |
-| Animation | R15 rig with looping animation, plugin edit-time stepping, and pause/resume |
-| Decal, Texture, ImageLabel, ImageButton | ImageLabel, preserving tint, transparency, and image cropping where applicable |
+| Animation, KeyframeSequence, CurveAnimation | R15 animation when body joints match; otherwise an animated bone stand-in |
+| Keyframe | Its authored pose on the R15 rig or bone stand-in |
+| Shirt, Pants, ShirtGraphic (T-shirt) | Clothing clone applied to an R15 mannequin |
+| Decal, Texture | ImageLabel preserving tint and transparency |
 | Images with flipbook metadata | Animated sprite-sheet frames |
 | ParticleEmitter | Animated 2D approximation with color/size/transparency sequences, velocity, acceleration, drag, rotation, and standard flipbook layouts |
-| GuiObject or LayerCollector | Static GUI clone; scripts are removed |
-| Sound | Explicit click-to-play/stop audio; no automatic playback |
+| GuiObject or LayerCollector, including ImageLabel/ImageButton | GUI clone with child hierarchy preserved; root Visible/Enabled is forced true; scripts are removed |
+| Sound | Widget-local audio with autoplay/Play/Pause, live PlaybackLoudness history, progress, and elapsed/total track time |
 | Other classes | Class and child/descendant counts |
 
-The interface follows Studio's theme live through StudioComponents. Previewer fills the widget with previews and shows pagination only when there are multiple pages. Hover the viewer to reveal the top-right **⋯** button for a dismissible options menu: **Studio**, **Dark**, or **Light** backgrounds, playback, page size, and place lighting. Tile headers and informational footers are hidden; loading and error messages overlay the preview when needed. Only the visible page mounts renderers. Selected-source edits are debounced; descendant property watching is capped at 1,000 nodes per tile. Larger assets can be refreshed by reselecting them.
+The interface follows Studio's theme live through StudioComponents. Previewer fills the widget with previews and shows pagination only when there are multiple pages. Hover the viewer to reveal the top-right **⋯** button for a dismissible options drawer: **Studio**, **Dark**, or **Light** backgrounds, **Fit/Fill**, playback, page size, and place lighting. Fit shows the whole asset; Fill enlarges it to cover the preview and crops overflow. GUI canvases retain their proportions, image sheets use fit/crop, and 3D previews adjust camera framing. Changing Fit/Fill preserves playback. Balanced panels use a grid; panels at least twice as tall as wide use a vertical list, and panels at least twice as wide as tall use a horizontal list. Tile headers and informational footers are hidden; loading and error messages overlay the preview when needed. Only the visible page mounts renderers. Selected-source edits are debounced; descendant property watching is capped at 1,000 nodes per tile. Larger assets can be refreshed by reselecting them.
 
-Cloning does not change the original asset. Non-Archivable selections report an error; Roblox may omit non-Archivable descendants. Scripts and embedded sounds are stripped from cloned geometry/GUI. Animation loading requires access to the animation asset and an R15-compatible clip. Each tile reports its own loading or renderer errors.
+Page size adapts to the widget dimensions, within the minimum and maximum configured in the options drawer. Previewer defaults to 1–25 items and supports limits up to 64. Assets auto-play by default; turn off **Auto-play assets** to start new selections/pages paused, then use playback controls to start them manually. The settings persist across Studio sessions. Camera framing solves the horizontal and vertical frustum constraints using visible part bounding-box corners, excludes invisible helper parts, and leaves a small border. Animated rigs use a sampled motion envelope to keep the camera stable.
+
+Cloning does not change the original asset. Non-Archivable selections report an error; Roblox may omit non-Archivable descendants. Scripts and embedded sounds are stripped from cloned geometry/GUI. Downloaded animations still require asset access. Each tile reports its own loading or renderer errors.
+
+Animations load through [AnimationClipProvider](https://create.roblox.com/docs/reference/engine/classes/AnimationClipProvider) and sample KeyframeSequence poses or CurveAnimation position/rotation curves. A custom solver positions anchored R15 parts from joint offsets and sampled transforms; playback does not depend on a live Humanoid or Animator. When no R15 body joints match, a colored bone-and-joint stand-in shows the animation hierarchy and movement. Channel paths distinguish repeated bone names on separate branches. If the selected clip is inside its original rig Model, available Bone/Motor6D rest offsets are used; without those offsets, the stand-in is schematic rather than a reconstruction of the original mesh. Facial channels are not rendered. Local clips and individual Keyframes can be selected without uploading them; a lone Keyframe displays its static pose. R15 mannequins are created through Roblox's avatar service.
+
+Audio is cloned into the plugin widget for edit-mode playback, detached from the source SoundGroup, and capped at 50% volume (zero-volume sources use 50% for preview). It auto-plays unless disabled in settings, loops, respects the global playback pause, and stops when the tile unmounts. Play can also start it manually when autoplay is disabled. The graph displays actual [PlaybackLoudness](https://create.roblox.com/docs/reference/engine/classes/Sound/PlaybackLoudness) samples, not a frequency spectrum. Loading failures remain visible; private audio still requires access in the current Studio session. Track length appears after loading. Organizer's sound thumbnails remain silent icons; opening the selected asset preview uses its autoplay preference.
 
 ### Lighting and FX limitations
 
@@ -80,7 +88,7 @@ ParticleEmitter flipbooks use their native layout/mode properties. `Preview_Text
 
 Add a strict module under `src/Preview`, then register it in `Registry.luau`. A renderer has `id`, `label`, `supports(instance)`, and `mount(context)` functions, typed by `Shared.Types.Renderer`. Registering after initialization inserts before the fallback; an explicit priority can override a broader renderer.
 
-`context.host` is a disposable Frame. Use `context.onCleanup` for every instance, connection, and track. Register cleanup before yielding; check `context.isAlive()` after async work. `context.options.playing` is updated without remounting, so pause preserves playback position. Send status/errors through `context.report`. Add a UI Labs story and a dispatch assertion in `tests/studio/Core.spec.luau`.
+`context.host` is a disposable Frame. Use `context.onCleanup` for every instance, connection, and track. Register cleanup before yielding; check `context.isAlive()` after async work. `context.options.playing`, `scaleMode`, and background update without remounting, so pause and framing changes preserve playback position. `context.palette` provides live theme colors for native renderer visuals. Send status/errors through `context.report`. Add a UI Labs story and a dispatch assertion in `tests/studio/Core.spec.luau`.
 
 ## Organizer
 
@@ -92,6 +100,8 @@ Add a strict module under `src/Preview`, then register it in `Registry.luau`. A 
 
 The ordinary folder view shows only immediate children, with folders first. Empty services, Folders, and Configurations are hidden, including branches containing only other empty folders. Services (direct children of the DataModel) are represented internally as virtual Folder records; the actual services are never cloned, renamed, or replaced. They are navigation targets only and cannot be selected as assets, annotated, or submitted for MCP preview/classification. Models, Tools, and other non-container instances are files; their internal descendants do not appear as separate browser entries.
 
+Open **Menu → View and playback settings** to switch between List and Grid. Grid places wrapped instance names below larger previews; full paths appear in search/filter results. The same panel configures autoplay and automatic page-size limits (8–100 by default, configurable up to 200). Resizing adapts the page size and retains the page containing the previous first item.
+
 Typing in search or enabling a tag/attribute filter searches recursively through the current location's folders. Search covers names, classes, and full paths. Opening a new location clears those filters. Thumbnails mount only for visible file rows, are released on scrolling away, and do not intercept row selection or scrolling. Audio and nonvisual classes use MaterialIcons fallback glyphs; visual classes reuse the shared preview renderers.
 
 The footer shows the 12 most populous tags under the current folder, sorted by instance count, plus any other active tag filters. Scroll the chip strip horizontally for more. Counts and dropdown suggestions include the folder's browsable contents recursively before search, filters, and pagination; services and file internals do not contribute metadata. Filters can use existing metadata without a schema definition; edits still require described tags and bounded attributes. The drawer also contains schema editing, MCP controls, and proposal review.
@@ -100,7 +110,7 @@ CoreGui and its entire subtree are excluded from results, counts, and suggestion
 
 The schema is JSON in `ServerStorage.AssetToolsSchema` (StringValue, version 1), saved with the place. Values are native instance attributes; tags are native CollectionService tags. No external database is needed. Existing tags and attributes outside the edited fields are preserved. Schemas do not automatically migrate existing values when definitions change.
 
-Edits validate the full batch first, record a Studio undo operation, and roll back on write failure. Studio Undo/Redo and opening the drawer refresh the list. Use **Refresh instances and suggestions** in the drawer after changes made elsewhere, including Team Create changes. The query engine traverses the current hierarchy in sorted order and yields in batches; it does not maintain a stale index. The UI displays 50 results per page; the API allows up to 200.
+Edits validate the full batch first, record a Studio undo operation, and roll back on write failure. Studio Undo/Redo and opening the drawer refresh the list. Use **Refresh instances and suggestions** in the drawer after changes made elsewhere, including Team Create changes. The query engine traverses the current hierarchy in sorted order and yields in batches; it does not maintain a stale index. The UI page size adapts within the configured limits; the API allows up to 200.
 
 Paths use `game/Service/Folder/Name`, with percent-escaped segments, rather than executable Luau expressions. Dots, slashes, percent signs, and Unicode names round-trip safely. Duplicate sibling names are rejected as ambiguous, and affected query entries are counted and skipped. Rename duplicate siblings before using them as query scopes or annotation targets. Renames/moves are reflected on the next query. Corrupt or newer schema versions are reported and never silently overwritten.
 
@@ -145,7 +155,7 @@ Review lists every proposed tag and value before **Apply proposals**. It revalid
 
 ## UI Labs
 
-Stories include **Full stack**, **Previewer**, **Organizer**, **Organizer drawer**, **Asset thumbnails**, **Material icons**, **Popular tag chips**, **Preview card**, **Preview menu**, **Images, flipbooks, and R15**, **Schema editor**, **Metadata editor**, and **Core controls**. Every story has a light/dark theme control. Previewer controls cover Folder and Configuration selection, a single preview, and an empty selection. Organizer stories include nested Folders/Configurations, a Model file, navigation, thumbnail visibility, filters, metadata/schema drawers, and dropdowns. Full stack shares selection between both screens. Media controls accept your image and animation IDs. The fixture hierarchy is isolated from the actual place, and its edits do not use Studio's undo history.
+Stories include **Full stack**, **Previewer**, **Organizer**, **Organizer drawer**, **Asset thumbnails**, **Material icons**, **Popular tag chips**, **Preview card**, **Preview menu**, **Images, audio, and R15**, **GUI mounting**, **Bone stand-in**, **Classic clothing**, **Schema editor**, **Metadata editor**, and **Core controls**. Every story has a light/dark theme control. Previewer controls cover Folder and Configuration selection, a single preview, and an empty selection. Organizer stories include List/Grid views, nested Folders/Configurations, a Model file, navigation, thumbnail visibility, filters, metadata/schema drawers, and dropdowns. Full stack shares selection between both screens. Media controls accept image, animation, and sound IDs and include a local animation clip. GUI mounting covers hidden roots, disabled screens, and Fit/Fill; Previewer includes tall/wide panel controls. Bone stand-in covers non-R15 motion and single Keyframes. Classic clothing accepts Shirt/Pants templates and a T-shirt image. The fixture hierarchy is isolated from the actual place, and its edits do not use Studio's undo history.
 
 Production Rojo projects exclude DevPackages, this project's stories/tests, and dependency-supplied story files. Artifact tests enforce that separation. Only the development project includes UI Labs.
 

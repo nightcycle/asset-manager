@@ -14,9 +14,12 @@ export type Props = {
 	order: number,
 	thumbnails: boolean?,
 	showPath: boolean?,
+	grid: boolean?,
+	autoPlay: boolean?,
 }
 return function(props: Props): React.ReactElement
 	local theme = Studio.useTheme()
+	local grid = props.grid == true
 	local row = React.useRef(nil :: Frame?)
 	local visible, setVisible = React.useState(false)
 	local hovered, setHovered = React.useState(false)
@@ -62,44 +65,58 @@ return function(props: Props): React.ReactElement
 		Size = UDim2.new(1, 0, 0, 56),
 		LayoutOrder = props.order,
 		BorderSizePixel = 0,
+		ClipsDescendants = true,
 		BackgroundColor3 = theme:GetColor(Enum.StudioStyleGuideColor.Item, modifier),
 	}, {
-		Icon = e(
-			"Frame",
-			{ Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(40, 40), BackgroundTransparency = 1 },
-			{
-				Content = if props.record.kind == "folder"
-					then e(Icons.Image, { name = "folder", size = UDim2.fromScale(1, 1) })
-					else e(Thumbnail, { source = props.source, active = visible and props.thumbnails ~= false }),
-			}
-		),
-		Name = e("TextLabel", {
-			Size = UDim2.new(1, -90, 0, 24),
-			Position = UDim2.fromOffset(58, if props.showPath then 4 else 16),
+		Icon = e("Frame", {
+			Position = UDim2.fromOffset(8, 8),
+			Size = if grid
+				then UDim2.new(1, -16, 1, if props.showPath then -108 else -76)
+				else UDim2.fromOffset(40, 40),
 			BackgroundTransparency = 1,
-			Text = props.record.name .. "  ·  " .. (if props.record.kind == "folder"
-				then "Folder"
-				else props.record.className),
+		}, {
+			Content = if props.record.kind == "folder"
+				then e(Icons.Image, { name = "folder", size = UDim2.fromScale(1, 1) })
+				else e(Thumbnail, {
+					source = props.source,
+					active = visible and props.thumbnails ~= false,
+					autoPlay = props.autoPlay,
+				}),
+		}),
+		Name = e("TextLabel", {
+			Size = if grid then UDim2.new(1, -12, 0, 56) else UDim2.new(1, -90, 0, 24),
+			Position = if grid
+				then UDim2.new(0, 6, 1, if props.showPath then -92 else -60)
+				else UDim2.fromOffset(58, if props.showPath then 4 else 16),
+			BackgroundTransparency = 1,
+			Text = if grid
+				then props.record.name
+				else props.record.name .. "  ·  " .. (if props.record.kind == "folder"
+					then "Folder"
+					else props.record.className),
 			Font = Enum.Font.SourceSansSemibold,
 			TextSize = 15,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextTruncate = Enum.TextTruncate.AtEnd,
+			TextXAlignment = if grid then Enum.TextXAlignment.Center else Enum.TextXAlignment.Left,
+			TextYAlignment = if grid then Enum.TextYAlignment.Top else Enum.TextYAlignment.Center,
+			TextWrapped = grid,
+			TextTruncate = if grid then Enum.TextTruncate.None else Enum.TextTruncate.AtEnd,
 			TextColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainText, modifier),
 		}),
 		Path = if props.showPath
 			then e("TextLabel", {
-				Size = UDim2.new(1, -90, 0, 20),
-				Position = UDim2.fromOffset(58, 29),
+				Size = if grid then UDim2.new(1, -12, 0, 32) else UDim2.new(1, -90, 0, 20),
+				Position = if grid then UDim2.new(0, 6, 1, -36) else UDim2.fromOffset(58, 29),
 				BackgroundTransparency = 1,
 				Text = props.record.fullName,
 				Font = Enum.Font.SourceSans,
 				TextSize = 13,
-				TextXAlignment = Enum.TextXAlignment.Left,
+				TextXAlignment = if grid then Enum.TextXAlignment.Center else Enum.TextXAlignment.Left,
+				TextWrapped = grid,
 				TextTruncate = Enum.TextTruncate.AtEnd,
 				TextColor3 = theme:GetColor(Enum.StudioStyleGuideColor.MainText, modifier),
 			})
 			else nil,
-		Arrow = if props.record.kind == "folder"
+		Arrow = if props.record.kind == "folder" and not grid
 			then e(
 				Icons.Image,
 				{ name = "chevron_right", position = UDim2.new(1, -28, 0, 18), size = UDim2.fromOffset(20, 20) }

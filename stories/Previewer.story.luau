@@ -8,6 +8,8 @@ return Story.Create("Previewer", {
 	SinglePreview = false,
 	SelectFolder = true,
 	SelectConfiguration = false,
+	Tall = false,
+	Wide = false,
 }, function(fixture, props)
 	local configuration = React.useMemo(function()
 		local instance = Instance.new("Configuration")
@@ -28,5 +30,11 @@ return Story.Create("Previewer", {
 		elseif props.controls.SelectConfiguration == true then { configuration }
 		elseif props.controls.SelectFolder == true then { fixture.root:FindFirstChild("Assets") :: Instance }
 		else fixture.selection
-	return React.createElement(App, { selection = selection })
+	return React.createElement("Frame", {
+		Size = if props.controls.Tall == true
+			then UDim2.new(0, 240, 1, 0)
+			elseif props.controls.Wide == true then UDim2.new(1, 0, 0, 180)
+			else UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+	}, { Preview = React.createElement(App, { selection = selection }) })
 end)

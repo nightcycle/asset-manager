@@ -83,7 +83,10 @@ function Particles.Mount(context: Types.PreviewContext)
 		end
 		credit = math.min(credit, 1)
 		local pixels = context.host.AbsoluteSize
-		local scale = math.min(pixels.X, pixels.Y) / math.max(12, source.Speed.Max * source.Lifetime.Max * 1.5)
+		local extent = if context.options.scaleMode == "Fill"
+			then math.max(pixels.X, pixels.Y)
+			else math.min(pixels.X, pixels.Y)
+		local scale = extent / math.max(12, source.Speed.Max * source.Lifetime.Max * 1.5)
 		for index = #particles, 1, -1 do
 			local particle = particles[index]
 			particle.age += dt

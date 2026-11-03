@@ -16,13 +16,19 @@ export type Props = {
 	minimal: boolean?,
 	thumbnail: boolean?,
 	fallbackIcon: Icons.Name?,
+	onPlay: (() -> ())?,
 }
 return function(props: Props): React.ReactElement
 	local theme = Studio.useTheme()
 	local host = React.useRef(nil :: Frame?)
 	local liveOptions = React.useRef(table.clone(props.options))
+	local playCallback = React.useRef(props.onPlay)
+	playCallback.current = props.onPlay
 	liveOptions.current.playing = props.options.playing
 	liveOptions.current.mirrorLighting = props.options.mirrorLighting
+	liveOptions.current.background = props.options.background
+	liveOptions.current.scaleMode = props.options.scaleMode
+	liveOptions.current.autoPlay = props.options.autoPlay
 	local status, setStatus =
 		React.useState({ text = "", kind = "info" } :: { text: string, kind: Types.PreviewStatusKind })
 	local revision, setRevision = React.useState(0)
@@ -32,6 +38,14 @@ return function(props: Props): React.ReactElement
 		then Color3.fromRGB(28, 30, 34)
 		elseif props.options.background == "Light" then Color3.fromRGB(238, 240, 243)
 		else theme:GetColor(Enum.StudioStyleGuideColor.ViewPortBackground)
+	local palette = React.useRef({} :: Types.PreviewPalette)
+	palette.current.text = if props.options.background == "Light"
+		then Color3.fromRGB(35, 38, 42)
+		elseif props.options.background == "Dark" then Color3.fromRGB(235, 238, 242)
+		else theme:GetColor(Enum.StudioStyleGuideColor.MainText)
+	palette.current.accent = palette.current.text
+	palette.current.button = theme:GetColor(Enum.StudioStyleGuideColor.Button)
+	palette.current.buttonText = theme:GetColor(Enum.StudioStyleGuideColor.ButtonText)
 	React.useEffect(function(): (() -> ())?
 		local scheduled = false
 		local alive = true
@@ -88,6 +102,12 @@ return function(props: Props): React.ReactElement
 					host = content,
 					source = source,
 					options = liveOptions.current,
+					palette = palette.current,
+					play = function()
+						if playCallback.current then
+							playCallback.current()
+						end
+					end,
 					report = function(text, kind)
 						if alive then
 							setStatus({ text = text, kind = kind or "info" })
