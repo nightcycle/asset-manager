@@ -5,6 +5,7 @@ local Studio = require(Packages.StudioComponents)
 local UI = require(script.Parent.Parent.UI.Controls)
 local PreviewCard = require(script.Parent.Parent.UI.PreviewCard)
 local PreviewMenu = require(script.Parent.Parent.UI.PreviewMenu)
+local Icons = require(script.Parent.Parent.UI.Icons)
 local useSelection = require(script.Parent.Parent.UI.useSelection)
 local usePreviewSelection = require(script.Parent.Parent.UI.usePreviewSelection)
 local Types = require(script.Parent.Parent.Shared.Types)
@@ -92,13 +93,13 @@ return function(props: Props): React.ReactElement
 				})
 				else nil,
 			MenuButton = if hovered and not menuOpen
-				then e(Studio.Button, {
-					Text = "⋯",
-					AnchorPoint = Vector2.new(1, 0),
-					Position = UDim2.new(1, -8, 0, 8),
-					Size = UDim2.fromOffset(32, 28),
-					ZIndex = 5,
-					OnActivated = function()
+				then e(Icons.Button, {
+					name = "more_horiz",
+					anchorPoint = Vector2.new(1, 0),
+					position = UDim2.new(1, -8, 0, 8),
+					size = UDim2.fromOffset(32, 28),
+					zIndex = 5,
+					click = function()
 						setMenuOpen(true)
 					end,
 				})

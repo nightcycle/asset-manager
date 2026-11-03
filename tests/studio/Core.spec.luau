@@ -10,6 +10,7 @@ local Registry = require(Source.Preview.Registry)
 local Cleanup = require(Source.Shared.Cleanup)
 local PreviewSelection = require(Source.Preview.Selection)
 local Catalog = require(Source.Organizer.Catalog)
+local Navigation = require(Source.Organizer.Navigation)
 
 return function(): number
 	local count = 0
@@ -267,5 +268,86 @@ return function(): number
 	local namedRows, namedCount = catalogDatabase.Query({ scope = "game/CoreGui" })
 	check(namedCount == 1 and namedRows[1].name == "CoreGui", "Excluded a user folder solely because of its name")
 	catalogRoot:Destroy()
+
+	local browserRoot = Instance.new("Folder")
+	local folder = Instance.new("Folder")
+	folder.Name, folder.Parent = "ZFolder", browserRoot
+	folder:AddTag("EmptyOnly")
+	local emptyConfiguration = Instance.new("Configuration")
+	emptyConfiguration.Name, emptyConfiguration.Parent = "EmptyConfiguration", folder
+	local browserConfiguration = Instance.new("Configuration")
+	browserConfiguration.Name, browserConfiguration.Parent = "AConfiguration", browserRoot
+	local assetModel = Instance.new("Model")
+	assetModel.Name, assetModel.Parent = "AModel", browserRoot
+	local internalPart = Instance.new("Part")
+	internalPart.Name, internalPart.Parent = "ModelInternals", assetModel
+	internalPart:AddTag("InternalOnly")
+	local directPart = Instance.new("Part")
+	directPart.Name, directPart.Parent = "BPart", browserRoot
+	local browserNestedPart = Instance.new("Part")
+	browserNestedPart.Name, browserNestedPart.Parent = "NestedAsset", browserConfiguration
+	browserNestedPart:AddTag("Nested")
+	local browser = Database.new(browserRoot, browserRoot, false)
+	local entries, entriesCount, _, browserCatalog = browser.Query({ scope = "game", browse = true, recursive = false })
+	check(
+		entriesCount == 3 and entries[1].name == "AConfiguration" and entries[2].name == "AModel",
+		"Browser is not a folders-first child listing or included an empty folder branch"
+	)
+	check(
+		entries[1].kind == "folder" and entries[2].kind == "asset" and entries[2].name == "AModel",
+		"Browser did not distinguish files and directories"
+	)
+	check(
+		#browserCatalog.tags == 1 and browserCatalog.tags[1].name == "Nested",
+		"Browser catalog included model internals or lost nested folder metadata"
+	)
+	local nestedRows, nestedCount =
+		browser.Query({ scope = "game", browse = true, recursive = true, tags = { "Nested" } })
+	check(
+		nestedCount == 1 and nestedRows[1].name == "NestedAsset",
+		"Recursive browser search did not descend through Configuration"
+	)
+	local children, childCount = browser.Query({ scope = "game/AConfiguration", browse = true, recursive = false })
+	check(childCount == 1 and children[1].name == "NestedAsset", "Opening a folder did not show its next layer")
+	local emptyRows, emptyCount = browser.Query({ scope = "game/ZFolder", browse = true, recursive = false })
+	check(emptyCount == 0 and #emptyRows == 0, "Empty folder listed itself")
+	local one, oneCount = browser.Query({ scope = "game", browse = true, recursive = false, limit = 1, offset = 1 })
+	check(oneCount == 3 and #one == 1 and one[1].name == "AModel", "Hidden folders affected pagination")
+	local _, emptySearchCount = browser.Query({ scope = "game", browse = true, search = "ZFolder" })
+	check(emptySearchCount == 0, "Search exposed a completely empty folder")
+	local _, emptyMetadataCount = browser.Query({ scope = "game", tags = { "EmptyOnly" } })
+	check(emptyMetadataCount == 1, "Browser visibility changed the metadata API's scope")
+	local newContent = Instance.new("Model")
+	newContent.Parent = emptyConfiguration
+	local populatedRows, populatedCount = browser.Query({ scope = "game", browse = true, recursive = false })
+	check(
+		populatedCount == 4 and populatedRows[2].name == "ZFolder",
+		"Adding an asset did not reveal its containing folder branch"
+	)
+	newContent:Destroy()
+	local _, clearedCount = browser.Query({ scope = "game", browse = true, recursive = false })
+	check(clearedCount == 3, "Removing the final asset left an empty folder branch visible")
+	check(
+		not pcall(browser.Query, { scope = "game/AModel", browse = true, recursive = false }),
+		"Opened a file as a directory"
+	)
+	browserRoot:Destroy()
+	local history = Navigation.Visit(Navigation.Visit(Navigation.New("game"), "game/A"), "game/A/B")
+	history = Navigation.Move(history, -1)
+	check(
+		history.entries[history.index] == "game/A" and Navigation.Move(history, 1).index == 3,
+		"Back/forward navigation failed"
+	)
+	history = Navigation.Visit(history, "game/C")
+	check(#history.entries == 3 and history.entries[3] == "game/C", "New navigation did not discard forward history")
+	check(
+		Navigation.Parent("game/A%2FB/C") == "game/A%2FB" and Navigation.Parent("game") == nil,
+		"Parent navigation broke encoded names or root"
+	)
+	local crumbs = Navigation.Breadcrumbs("game/A%2FB/%E6%B5%8B%E8%AF%95")
+	check(
+		crumbs[2].name == "A/B" and crumbs[3].name == "测试" and crumbs[3].path == "game/A%2FB/%E6%B5%8B%E8%AF%95",
+		"Breadcrumbs did not preserve canonical paths"
+	)
 	return count
 end

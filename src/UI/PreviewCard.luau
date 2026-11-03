@@ -5,6 +5,7 @@ local Studio = require(Packages.StudioComponents)
 local Types = require(script.Parent.Parent.Shared.Types)
 local Cleanup = require(script.Parent.Parent.Shared.Cleanup)
 local Registry = require(script.Parent.Parent.Preview.Registry)
+local Icons = require(script.Parent.Icons)
 local e = React.createElement
 export type Props = {
 	source: Instance,
@@ -13,6 +14,8 @@ export type Props = {
 	position: UDim2?,
 	order: number?,
 	minimal: boolean?,
+	thumbnail: boolean?,
+	fallbackIcon: Icons.Name?,
 }
 return function(props: Props): React.ReactElement
 	local theme = Studio.useTheme()
@@ -51,7 +54,7 @@ return function(props: Props): React.ReactElement
 		table.insert(connections, source.AttributeChanged:Connect(changed))
 		table.insert(connections, source.DescendantAdded:Connect(changed))
 		table.insert(connections, source.DescendantRemoving:Connect(changed))
-		local descendants = source:GetDescendants()
+		local descendants: { Instance } = if props.thumbnail then {} else source:GetDescendants()
 		for index = 1, math.min(#descendants, 1000) do
 			table.insert(connections, descendants[index].Changed:Connect(changed))
 		end
@@ -61,7 +64,7 @@ return function(props: Props): React.ReactElement
 				connection:Disconnect()
 			end
 		end
-	end, { source, revision } :: { unknown })
+	end, { source, revision, props.thumbnail == true } :: { unknown })
 	React.useEffect(function(): (() -> ())?
 		local parent = host.current
 		if not parent then
@@ -140,7 +143,19 @@ return function(props: Props): React.ReactElement
 			BorderSizePixel = 0,
 			ClipsDescendants = true,
 		}),
-		Status = if props.minimal and status.kind == "info"
+		Fallback = if props.thumbnail and status.kind ~= "info"
+			then e("Frame", {
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				ZIndex = 3,
+			}, {
+				Icon = e(
+					Icons.Image,
+					{ name = props.fallbackIcon or "insert_drive_file", size = UDim2.fromScale(1, 1) }
+				),
+			})
+			else nil,
+		Status = if props.thumbnail or (props.minimal and status.kind == "info")
 			then nil
 			else e("TextLabel", {
 				Position = UDim2.new(0, 8, 1, -39),

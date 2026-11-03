@@ -25,7 +25,7 @@ function World.Mount(context: Types.PreviewContext, model: Model): ViewportFrame
 	local viewport = Instance.new("ViewportFrame")
 	viewport.Size = UDim2.fromScale(1, 1)
 	viewport.BackgroundTransparency = 1
-	viewport.Active = true
+	viewport.Active = not context.options.thumbnail
 	viewport.Parent = context.host
 	context.onCleanup(function()
 		viewport:Destroy()
@@ -58,33 +58,35 @@ function World.Mount(context: Types.PreviewContext, model: Model): ViewportFrame
 		end)
 	end
 	connect(viewport:GetPropertyChangedSignal("AbsoluteSize"), fit)
-	connect(viewport.InputBegan, function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			last = Vector2.new(input.Position.X, input.Position.Y)
-		end
-	end)
-	connect(viewport.InputEnded, function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+	if not context.options.thumbnail then
+		connect(viewport.InputBegan, function(input: InputObject)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = true
+				last = Vector2.new(input.Position.X, input.Position.Y)
+			end
+		end)
+		connect(viewport.InputEnded, function(input: InputObject)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = false
+			end
+		end)
+		connect(viewport.MouseLeave, function()
 			dragging = false
-		end
-	end)
-	connect(viewport.MouseLeave, function()
-		dragging = false
-	end)
-	connect(viewport.InputChanged, function(input: InputObject)
-		if input.UserInputType == Enum.UserInputType.MouseWheel then
-			zoom = math.clamp(zoom * (0.9 ^ input.Position.Z), 0.25, 5)
-			fit()
-		elseif dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-			local position = Vector2.new(input.Position.X, input.Position.Y)
-			local delta = position - last
-			last = position
-			yaw -= delta.X * 0.01
-			pitch = math.clamp(pitch + delta.Y * 0.01, -1.4, 1.4)
-			fit()
-		end
-	end)
+		end)
+		connect(viewport.InputChanged, function(input: InputObject)
+			if input.UserInputType == Enum.UserInputType.MouseWheel then
+				zoom = math.clamp(zoom * (0.9 ^ input.Position.Z), 0.25, 5)
+				fit()
+			elseif dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+				local position = Vector2.new(input.Position.X, input.Position.Y)
+				local delta = position - last
+				last = position
+				yaw -= delta.X * 0.01
+				pitch = math.clamp(pitch + delta.Y * 0.01, -1.4, 1.4)
+				fit()
+			end
+		end)
+	end
 	local skyClone: Sky? = nil
 	local function lighting()
 		if context.options.mirrorLighting then

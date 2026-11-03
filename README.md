@@ -1,9 +1,9 @@
 # Asset Tools for Roblox Studio
 
-Two independent Studio plugins built with strict Luau, React 17, and [StudioComponents](https://github.com/sircfenner/StudioComponents). Wally manages runtime dependencies and the UI Labs development dependency.
+Two independent Studio plugins built with strict Luau, React 17, and [StudioComponents](https://github.com/sircfenner/StudioComponents). Wally manages runtime dependencies, including `MaterialIcons = "nightcycle/material-icons@1.0.3"`, and the UI Labs development dependency. Folder, navigation, menu, and fallback asset icons use MaterialIcons sprite sheets and Studio theme colors.
 
-- **Previewer** follows Explorer selection, expands Folders and Configurations recursively into their children, divides the viewer into 1, 4, or 9 tiles per page, and dispatches each instance to a class-specific renderer. Models, Tools, and Accessories stay intact; overlapping selections are deduplicated. Adding or removing children updates the previews.
-- **Organizer** defines a place-local metadata schema, lists and filters assets by hierarchy, tags, and attributes, previews query results, and applies undoable batch edits.
+- **Previewer** follows Explorer selection, expands services, Folders, and Configurations recursively into their children, divides the viewer into 1, 4, or 9 tiles per page, and dispatches each instance to a class-specific renderer. Models, Tools, and Accessories stay intact; overlapping selections are deduplicated. Adding or removing children updates the previews. CoreGui is excluded.
+- **Organizer** browses folders and asset files with thumbnails, defines a place-local metadata schema, filters assets by hierarchy, tags, and attributes, and applies undoable batch edits.
 
 ## Develop and install
 
@@ -44,7 +44,8 @@ Enable each plugin from the **Asset Tools** toolbar. Their stable widget IDs and
 
 | Selection | Renderer |
 | --- | --- |
-| BasePart, Model, Accessory, Tool, Folder containing parts, SpecialMesh | Sanitized clone in a WorldModel/ViewportFrame; drag to orbit and scroll to zoom |
+| Service, Folder, Configuration | Expand into children; nested containers expand recursively |
+| BasePart, Model, Accessory, Tool, SpecialMesh | Sanitized clone in a WorldModel/ViewportFrame; drag to orbit and scroll to zoom |
 | Animation | R15 rig with looping animation, plugin edit-time stepping, and pause/resume |
 | Decal, Texture, ImageLabel, ImageButton | ImageLabel, preserving tint, transparency, and image cropping where applicable |
 | Images with flipbook metadata | Animated sprite-sheet frames |
@@ -85,11 +86,15 @@ Add a strict module under `src/Preview`, then register it in `Registry.luau`. A 
 
 1. Open the **☰ drawer → Tag and attribute schema** and create tags or attributes. Every definition requires a description. Existing names from the current scope are offered in dropdowns; new definitions can still be typed.
 2. Numbers require finite inclusive minimum/maximum bounds; enums require an explicit list of allowed strings; booleans accept exactly `true` and `false`. Freeform string attributes are deliberately excluded.
-3. Search in the header. Open **☰ → Filters and scope**, select a folder in Explorer, and choose **Scope to selection**, or enter its canonical path. Results display the instance's `GetFullName()`; search covers full names, classes, and paths. Full names are derived from the hierarchy, never stored as instance attributes.
+3. Start at the place root and click a service folder, then click Folders or Configurations to open the next layer. Back, Forward, Up, and clickable breadcrumbs navigate between locations. **Menu → Filters and scope** also offers a canonical path field with **Open location**, and **Open selected folder or containing folder** for Studio's current selection. Folder-view rows show names and asset types; search/filter results also show the instance's `GetFullName()`, derived from its current hierarchy, never stored as an attribute.
 4. Toggle tag chips at the foot of the list, or choose tags and an attribute/value from the drawer dropdowns. Tag filters require every selected tag; attribute filtering preserves the value's type (`false`, `"false"`, `0`, and `"0"` are different values).
-5. Click a result to select it while keeping the list visible. Open **☰ → Selected instances** for its preview and metadata editor. Add/remove managed tags or set an attribute on the current Explorer selection, up to 200 targets per batch.
+5. Click an asset file to select it while keeping the list visible. Open **Menu → Selected instances** for its preview and metadata editor. Add/remove managed tags or set an attribute on the current Explorer selection, up to 200 targets per batch.
 
-The footer shows the 12 most populous tags in the current scope, sorted by instance count, plus any other active tag filters. Scroll the chip strip horizontally for more. Counts and dropdown suggestions include the whole scope before search, tag/attribute filters, and pagination. Filters can use existing metadata without a schema definition; edits still require described tags and bounded attributes. The drawer also contains schema editing, MCP controls, and proposal review.
+The ordinary folder view shows only immediate children, with folders first. Empty services, Folders, and Configurations are hidden, including branches containing only other empty folders. Services (direct children of the DataModel) are represented internally as virtual Folder records; the actual services are never cloned, renamed, or replaced. They are navigation targets only and cannot be selected as assets, annotated, or submitted for MCP preview/classification. Models, Tools, and other non-container instances are files; their internal descendants do not appear as separate browser entries.
+
+Typing in search or enabling a tag/attribute filter searches recursively through the current location's folders. Search covers names, classes, and full paths. Opening a new location clears those filters. Thumbnails mount only for visible file rows, are released on scrolling away, and do not intercept row selection or scrolling. Audio and nonvisual classes use MaterialIcons fallback glyphs; visual classes reuse the shared preview renderers.
+
+The footer shows the 12 most populous tags under the current folder, sorted by instance count, plus any other active tag filters. Scroll the chip strip horizontally for more. Counts and dropdown suggestions include the folder's browsable contents recursively before search, filters, and pagination; services and file internals do not contribute metadata. Filters can use existing metadata without a schema definition; edits still require described tags and bounded attributes. The drawer also contains schema editing, MCP controls, and proposal review.
 
 CoreGui and its entire subtree are excluded from results, counts, and suggestions, including explicit scopes inside CoreGui. Direct metadata/preview/edit requests against that subtree are rejected. A user-created Folder named `CoreGui` is unaffected.
 
@@ -117,9 +122,11 @@ The JSON response is `{ok=true,result=...}` or `{ok=false,error=...}`. Requests 
 | Action | Input | Output / behavior |
 | --- | --- | --- |
 | `schema` | No additional fields | Versioned definitions, descriptions, and bounds |
-| `query` | `scope`; optional `search`, `className`, `tags`, `attributes`, `offset`, `limit` | `records`, total count, ambiguous-path count, scope `catalog` of tag counts and observed attribute values |
+| `query` | `scope`; optional `search`, `className`, `tags`, `attributes`, `offset`, `limit`, `browse`, `recursive` | `records`, total count, ambiguous-path count, scope `catalog` of tag counts and observed attribute values |
 | `preview` | `path` | Opens that asset in Organizer's selection drawer; returns its metadata |
 | `propose` | `annotations = [{path,tags,attributes}, ...]` | Validates and queues a batch for review without applying it |
+
+Queries default to recursive instance search, excluding service objects. Set `browse=true, recursive=false` for a direct-child directory listing; `browse=true, recursive=true` searches through nested directory containers without descending into files. Both browser modes omit completely empty directory branches. Records include `kind` (`folder` or `asset`), `selectable`, and `sourceClassName`; service navigation records use `className="Folder"` with `selectable=false`. CoreGui remains excluded in every mode.
 
 For example, a proposal body is:
 
@@ -138,7 +145,7 @@ Review lists every proposed tag and value before **Apply proposals**. It revalid
 
 ## UI Labs
 
-Stories include **Full stack**, **Previewer**, **Organizer**, **Organizer drawer**, **Popular tag chips**, **Preview card**, **Preview menu**, **Images, flipbooks, and R15**, **Schema editor**, **Metadata editor**, and **Core controls**. Every story has a light/dark theme control. Previewer controls cover Folder and Configuration selection, a single preview, and an empty selection. Organizer stories cover the list, filters, metadata and schema drawers, and dropdowns. Full stack shares selection between both screens and includes enough assets to exercise pagination. Media controls accept your image and animation IDs. The fixture hierarchy is isolated from the actual place, and its edits do not use Studio's undo history.
+Stories include **Full stack**, **Previewer**, **Organizer**, **Organizer drawer**, **Asset thumbnails**, **Material icons**, **Popular tag chips**, **Preview card**, **Preview menu**, **Images, flipbooks, and R15**, **Schema editor**, **Metadata editor**, and **Core controls**. Every story has a light/dark theme control. Previewer controls cover Folder and Configuration selection, a single preview, and an empty selection. Organizer stories include nested Folders/Configurations, a Model file, navigation, thumbnail visibility, filters, metadata/schema drawers, and dropdowns. Full stack shares selection between both screens. Media controls accept your image and animation IDs. The fixture hierarchy is isolated from the actual place, and its edits do not use Studio's undo history.
 
 Production Rojo projects exclude DevPackages, this project's stories/tests, and dependency-supplied story files. Artifact tests enforce that separation. Only the development project includes UI Labs.
 

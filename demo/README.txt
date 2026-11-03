@@ -18,10 +18,12 @@ TEST IN EDIT MODE (no Play button required):
 4. Hover the viewer and open the top-right ellipsis menu for 1 / 4 / 9 tiles,
    background, playback, and lighting options. Pagination appears only when
    more than one page is needed. Switch the Studio theme; adjust Lighting.
-5. In Organizer, select AssetGallery, open the header menu, and choose
-   Filters and scope > Scope to selection. Search stays in the header.
+5. In Organizer, open Workspace > AssetGallery > a category folder. Services,
+   Folders, and Configurations navigate like directories; asset files have
+   small previews. Use Back, Forward, Up, and the breadcrumbs to navigate.
 6. Toggle the popular DemoAsset or Geometry chips at the foot of the list.
-   In the drawer, choose Category and vegetation from the dropdowns.
+   Search and filters include subfolders. In the drawer, choose Category and
+   vegetation from the dropdowns. Opening another folder clears the filters.
 7. Select some assets, open Selected instances in the drawer, choose
    Reviewed = true, apply, and test Studio Undo/Redo. CoreGui is excluded.
 8. Select items in ReplicatedStorage.PreviewExamples for images, FX,

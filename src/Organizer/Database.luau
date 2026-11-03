@@ -6,6 +6,7 @@ local Schema = require(script.Parent.Parent.Shared.Schema)
 local Paths = require(script.Parent.Parent.Shared.Paths)
 local Query = require(script.Parent.Query)
 local Catalog = require(script.Parent.Catalog)
+local Hierarchy = require(script.Parent.Parent.Shared.Hierarchy)
 export type Database = {
 	ReadSchema: () -> Types.Schema,
 	SaveSchema: (Types.Schema) -> (),
@@ -19,9 +20,7 @@ local Database = {}
 local SCHEMA_NAME = "AssetToolsSchema"
 
 function Database.new(root: Instance, storage: Instance, recordChanges: boolean): Database
-	local function inCoreGui(instance: Instance): boolean
-		return instance:IsA("CoreGui") or instance:FindFirstAncestorOfClass("CoreGui") ~= nil
-	end
+	local inCoreGui = Hierarchy.IsExcluded
 	local function resolve(path: string): Instance
 		local instance, message = Paths.Resolve(path, root)
 		assert(instance, message)
@@ -69,19 +68,24 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 		end
 	end
 	local function describeAt(instance: Instance, path: string): Types.Record
+		local service = Hierarchy.IsService(instance) or instance:IsA("DataModel")
 		local attributes: { [string]: Types.Value } = {}
-		for key, value in instance:GetAttributes() do
+		local rawAttributes: { [string]: unknown } = if service then {} else instance:GetAttributes()
+		for key, value in rawAttributes do
 			if type(value) == "string" or type(value) == "number" or type(value) == "boolean" then
 				attributes[key] = value
 			end
 		end
-		local tags = instance:GetTags()
+		local tags: { string } = if service then {} else instance:GetTags()
 		table.sort(tags)
 		return {
 			path = path,
 			name = instance.Name,
 			fullName = instance:GetFullName(),
-			className = instance.ClassName,
+			className = if service then "Folder" else instance.ClassName,
+			sourceClassName = instance.ClassName,
+			kind = if Hierarchy.IsFolder(instance) then "folder" else "asset",
+			selectable = not service and instance ~= root,
 			tags = tags,
 			attributes = attributes,
 		}
@@ -130,38 +134,88 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 			if inCoreGui(scope) then
 				return {}, 0, 0, Catalog.Empty()
 			end
+			assert(
+				not query.browse or Hierarchy.IsFolder(scope) or scope == root,
+				"Open a service, Folder, or Configuration to browse its children"
+			)
 			local catalog = Catalog.New()
 			local offset = math.max(0, math.floor(query.offset or 0))
 			local limit = math.clamp(math.floor(query.limit or 100), 1, 200)
 			local results: { Types.Record } = {}
 			local total, ambiguous, scanned = 0, 0, 0
 			-- Iterative traversal yields every 250 nodes, without allocating GetDescendants for the entire place.
-			type Entry = { instance: Instance, path: string? }
-			local stack: { Entry } = { { instance = scope, path = query.scope } }
+			type Entry = { instance: Instance, path: string?, depth: number }
+			local stack: { Entry } = { { instance = scope, path = query.scope, depth = 0 } }
 			local savedSchema = storage:FindFirstChild(SCHEMA_NAME)
-			while #stack > 0 do
-				if cancelled and cancelled() then
-					return {}, 0, 0, Catalog.Empty()
-				end
-				local entry = table.remove(stack) :: Entry
-				local instance, path = entry.instance, entry.path
-				if
-					instance:IsA("CoreGui")
+			local function hidden(instance: Instance): boolean
+				return instance:IsA("CoreGui")
 					or instance == savedSchema
 					or (
 						instance.Name == "AssetToolsMCP"
 						and instance:IsA("BindableFunction")
 						and not instance.Archivable
 					)
-				then
+			end
+			-- Cache folder contents once per query, including branches of only empty folders.
+			-- Files remain atomic, and private plugin data cannot make a folder appear populated.
+			local populated: { [Instance]: boolean } = {}
+			if query.browse then
+				local pending: { Instance } = { scope }
+				local folders: { Instance } = {}
+				while #pending > 0 do
+					if cancelled and cancelled() then
+						return {}, 0, 0, Catalog.Empty()
+					end
+					local folder = table.remove(pending) :: Instance
+					populated[folder] = false
+					table.insert(folders, folder)
+					for _, child in folder:GetChildren() do
+						if not hidden(child) then
+							if Hierarchy.IsFolder(child) then
+								table.insert(pending, child)
+							else
+								populated[folder] = true
+							end
+						end
+						scanned += 1
+						if scanned % 250 == 0 then
+							task.wait()
+							if cancelled and cancelled() then
+								return {}, 0, 0, Catalog.Empty()
+							end
+						end
+					end
+				end
+				for index = #folders, 1, -1 do
+					local folder = folders[index]
+					local parent = folder.Parent
+					if populated[folder] and parent and populated[parent] ~= nil then
+						populated[parent] = true
+					end
+				end
+			end
+			while #stack > 0 do
+				if cancelled and cancelled() then
+					return {}, 0, 0, Catalog.Empty()
+				end
+				local entry = table.remove(stack) :: Entry
+				local instance, path = entry.instance, entry.path
+				if hidden(instance) or (query.browse and Hierarchy.IsFolder(instance) and not populated[instance]) then
 					continue
 				end
-				local children = instance:GetChildren()
+				local children: { Instance } = if not query.browse
+						or Hierarchy.IsFolder(instance)
+						or instance == root
+					then instance:GetChildren()
+					else {}
 				local names: { [string]: number } = {}
 				for _, child in children do
 					names[child.Name] = (names[child.Name] or 0) + 1
 				end
 				table.sort(children, function(a, b)
+					if query.browse and Hierarchy.IsFolder(a) ~= Hierarchy.IsFolder(b) then
+						return Hierarchy.IsFolder(a)
+					end
 					return a.Name < b.Name
 				end)
 				for i = #children, 1, -1 do
@@ -169,18 +223,25 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 					table.insert(stack, {
 						instance = child,
 						path = if path and names[child.Name] == 1 then path .. "/" .. Paths.Encode(child.Name) else nil,
+						depth = entry.depth + 1,
 					})
 				end
-				if path then
+				local service = Hierarchy.IsService(instance) or instance:IsA("DataModel")
+				if path and (query.browse or not service) then
 					local record = describeAt(instance, path)
-					Catalog.Add(catalog, record)
-					if Query.Matches(record, query) then
+					if not query.browse or entry.depth > 0 then
+						Catalog.Add(catalog, record)
+					end
+					local included = if query.browse
+						then entry.depth > 0 and (query.recursive ~= false or entry.depth == 1)
+						else query.recursive ~= false or entry.depth <= 1
+					if included and Query.Matches(record, query) then
 						total += 1
 						if total > offset and #results < limit then
 							table.insert(results, record)
 						end
 					end
-				else
+				elseif not path then
 					ambiguous += 1
 				end
 				scanned += 1
@@ -200,6 +261,7 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 				local valid, message = Schema.ValidateAnnotation(schema, annotation)
 				assert(valid, message)
 				local instance = resolve(annotation.path)
+				assert(not Hierarchy.IsService(instance), "Services are navigation folders, not annotation targets")
 				assert(instance ~= root and instance ~= schemaValue(), "Cannot annotate the database or DataModel root")
 				assert(not seen[instance], "Duplicate target in annotation batch")
 				seen[instance] = true

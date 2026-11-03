@@ -16,6 +16,10 @@ local Schema = require(script.Parent.Parent.Shared.Schema)
 local Database = require(script.Parent.Database)
 local Catalog = require(script.Parent.Catalog)
 local Bridge = require(script.Parent.Bridge)
+local Navigation = require(script.Parent.Navigation)
+local Hierarchy = require(script.Parent.Parent.Shared.Hierarchy)
+local Icons = require(script.Parent.Parent.UI.Icons)
+local Breadcrumbs = require(script.Parent.Parent.UI.Breadcrumbs)
 local e = React.createElement
 export type Props = {
 	database: Database.Database,
@@ -23,22 +27,36 @@ export type Props = {
 	onSelect: (({ Instance }) -> ())?,
 	bridgeParent: Instance?,
 	initialDrawer: string?,
+	initialScope: string?,
 }
 
 return function(props: Props): React.ReactElement
 	local database = props.database
-	local selection = useSelection(props.selection)
+	local rawSelection = useSelection(props.selection)
+	local selection = React.useMemo(function(): { Instance }
+		local assets: { Instance } = {}
+		for _, instance in rawSelection do
+			local ok, record = pcall(database.Describe, instance)
+			if ok and (record :: Types.Record).selectable then
+				table.insert(assets, instance)
+			end
+		end
+		return assets
+	end, { database, rawSelection } :: { unknown })
 	local drawerOpen, setDrawerOpen = React.useState(props.initialDrawer ~= nil)
 	local view, setView = React.useState(props.initialDrawer or "Filters")
 	local status, setStatus = React.useState("")
 	local queryError, setQueryError = React.useState("")
 	local revision, setRevision = React.useState(0)
-	local scope, setScope = React.useState("game")
+	local history, setHistory = React.useState(Navigation.New(props.initialScope or "game"))
+	local scope = history.entries[history.index]
+	local scopeDraft, setScopeDraft = React.useState(scope)
 	local search, setSearch = React.useState("")
 	local tags, setTags = React.useState({} :: { string })
 	local filterName, setFilterName = React.useState("")
 	local filterState, setFilterState = React.useState({ value = nil } :: { value: Types.Value? })
 	local filterValue = filterState.value
+	local searchView = search ~= "" or #tags > 0 or (filterName ~= "" and filterValue ~= nil)
 	local function setFilterValue(value: Types.Value?)
 		setFilterState({ value = value })
 	end
@@ -62,6 +80,31 @@ return function(props: Props): React.ReactElement
 		setRevision(function(value)
 			return value + 1
 		end)
+	end
+	local function navigate(path: string, updatedHistory: Navigation.History?)
+		local ok, message = pcall(function(): string?
+			local target = database.Resolve(path)
+			assert(Hierarchy.IsFolder(target) or target == database.Root, "Open a service, Folder, or Configuration")
+			return nil
+		end)
+		if not ok then
+			setStatus(tostring(message))
+			setQueryError(tostring(message))
+			return
+		end
+		setHistory(updatedHistory or Navigation.Visit(history, path))
+		setScopeDraft(path)
+		setPage(1)
+		setSearch("")
+		setTags({})
+		setFilterName("")
+		setFilterValue(nil)
+		setQueryError("")
+		setRecords({})
+	end
+	local function moveHistory(offset: number)
+		local updated = Navigation.Move(history, offset)
+		navigate(updated.entries[updated.index], updated)
 	end
 	local function openDrawer(section: string?)
 		if section then
@@ -122,6 +165,8 @@ return function(props: Props): React.ReactElement
 				end
 				local result, count, ambiguous, discovered = database.Query({
 					scope = scope,
+					browse = true,
+					recursive = searchView,
 					search = search,
 					tags = tags,
 					attributes = attributes,
@@ -158,7 +203,7 @@ return function(props: Props): React.ReactElement
 		return function()
 			cancelled = true
 		end
-	end, { database, scope, search, tags, filterName, filterState, page, revision } :: { unknown })
+	end, { database, scope, search, tags, filterName, filterState, searchView, page, revision } :: { unknown })
 	React.useEffect(function(): (() -> ())?
 		if not bridgeEnabled or not props.bridgeParent then
 			return nil
@@ -197,13 +242,25 @@ return function(props: Props): React.ReactElement
 	end
 	local resultRows: UI.Children = {}
 	for index, record in records do
+		local resolved, source = pcall(database.Resolve, record.path)
 		resultRows[record.path] = e(InstanceRow, {
 			record = record,
-			selected = selectedPaths[record.path] == true,
+			source = if resolved and record.kind == "asset" then source else nil,
+			thumbnails = not drawerOpen,
+			showPath = searchView,
+			selected = record.kind == "asset" and selectedPaths[record.path] == true,
 			order = index,
 			click = function()
 				local ok, instance = pcall(database.Resolve, record.path)
 				if ok then
+					local currentRecord = database.Describe(instance)
+					if currentRecord.kind == "folder" then
+						navigate(record.path, nil)
+						return
+					end
+					if not currentRecord.selectable then
+						return
+					end
 					setPreview(instance)
 					if props.onSelect then
 						props.onSelect({ instance })
@@ -330,39 +387,56 @@ return function(props: Props): React.ReactElement
 		})
 	else
 		drawerBody = e(UI.Column, nil, {
-			ScopeLabel = e(UI.Text, { text = "Scope", order = 1 }),
-			Scope = e(UI.Input, { text = scope, change = setScope, placeholder = "game/Workspace/Assets", order = 2 }),
-			SelectionScope = e(UI.Button, {
-				text = "Scope to selection",
-				disabled = #selection ~= 1,
+			ScopeLabel = e(UI.Text, { text = "Folder location", order = 1 }),
+			Scope = e(
+				UI.Input,
+				{ text = scopeDraft, change = setScopeDraft, placeholder = "game/Workspace/Assets", order = 2 }
+			),
+			Open = e(UI.Button, {
+				text = "Open location",
 				order = 3,
 				click = function()
-					local ok, record = pcall(database.Describe, selection[1])
+					navigate(scopeDraft, nil)
+				end,
+			}),
+			SelectionScope = e(UI.Button, {
+				text = "Open selected folder or containing folder",
+				disabled = #rawSelection ~= 1,
+				order = 4,
+				click = function()
+					local target: Instance? = rawSelection[1]
+					while target and not Hierarchy.IsFolder(target) and target ~= database.Root do
+						target = target.Parent
+					end
+					if not target then
+						return
+					end
+					local ok, record = pcall(database.Describe, target)
 					if ok then
-						setScope((record :: Types.Record).path)
+						navigate((record :: Types.Record).path, nil)
 					else
 						setStatus(tostring(record))
 					end
 				end,
 			}),
 			WholePlace = e(UI.Button, {
-				text = "Entire place",
-				order = 4,
+				text = "Open place root",
+				order = 5,
 				click = function()
-					setScope("game")
+					navigate("game", nil)
 				end,
 			}),
-			TagsLabel = e(UI.Text, { text = "Require all tags", order = 5 }),
+			TagsLabel = e(UI.Text, { text = "Require all tags", order = 6 }),
 			Tags = e(
 				TagPicker,
-				{ choices = Catalog.TagNames(catalog, schema), selected = tags, change = setTags, order = 6 }
+				{ choices = Catalog.TagNames(catalog, schema), selected = tags, change = setTags, order = 7 }
 			),
-			AttributeLabel = e(UI.Text, { text = "Attribute equals", order = 7 }),
+			AttributeLabel = e(UI.Text, { text = "Attribute equals", order = 8 }),
 			Attribute = e(UI.Dropdown, {
 				items = UI.Choices(availableAttributes),
 				selected = if filterName ~= "" then filterName else nil,
 				placeholder = "Choose an attribute…",
-				order = 8,
+				order = 9,
 				change = function(name: string?)
 					setFilterName(name or "")
 					setFilterValue(nil)
@@ -373,7 +447,7 @@ return function(props: Props): React.ReactElement
 					items = valueChoices,
 					selected = if filterValue ~= nil then Catalog.ValueId(filterValue) else nil,
 					placeholder = "Choose an observed value…",
-					order = 9,
+					order = 10,
 					change = function(id: string?)
 						local chosen: Types.Value? = nil
 						for _, value in filterValues do
@@ -388,7 +462,7 @@ return function(props: Props): React.ReactElement
 				else nil,
 			Clear = e(UI.Button, {
 				text = "Clear filters",
-				order = 10,
+				order = 11,
 				click = function()
 					setTags({})
 					setFilterName("")
@@ -396,11 +470,11 @@ return function(props: Props): React.ReactElement
 					setSearch("")
 				end,
 			}),
-			Refresh = e(UI.Button, { text = "Refresh instances and suggestions", order = 11, click = refresh }),
+			Refresh = e(UI.Button, { text = "Refresh instances and suggestions", order = 12, click = refresh }),
 			Bridge = if props.bridgeParent
 				then e(UI.Button, {
 					text = if bridgeEnabled then "Studio MCP bridge: on" else "Enable Studio MCP bridge",
-					order = 12,
+					order = 13,
 					click = function()
 						setBridgeEnabled(not bridgeEnabled)
 					end,
@@ -423,26 +497,70 @@ return function(props: Props): React.ReactElement
 				Search = e(Studio.TextInput, {
 					Text = search,
 					OnChanged = setSearch,
-					PlaceholderText = "Search instances…",
+					PlaceholderText = "Search this folder…",
 					ClearTextOnFocus = false,
 					Size = UDim2.new(1, -46, 1, 0),
 				}),
-				Menu = e(Studio.Button, {
-					Text = if #proposals > 0 then "☰ •" else "☰",
-					Position = UDim2.new(1, -38, 0, 0),
-					Size = UDim2.fromOffset(38, 28),
-					OnActivated = function()
+				Menu = e(Icons.Button, {
+					name = "menu",
+					position = UDim2.new(1, -38, 0, 0),
+					size = UDim2.fromOffset(38, 28),
+					click = function()
 						openDrawer(nil)
 					end,
 				}),
 			}
 		),
+		Navigation = e(
+			"Frame",
+			{ Position = UDim2.fromOffset(8, 44), Size = UDim2.new(1, -16, 0, 32), BackgroundTransparency = 1 },
+			{
+				Back = e(Icons.Button, {
+					name = "arrow_back",
+					disabled = history.index <= 1,
+					click = function()
+						moveHistory(-1)
+					end,
+				}),
+				Forward = e(Icons.Button, {
+					name = "arrow_forward",
+					position = UDim2.fromOffset(32, 0),
+					disabled = history.index >= #history.entries,
+					click = function()
+						moveHistory(1)
+					end,
+				}),
+				Up = e(Icons.Button, {
+					name = "arrow_upward",
+					position = UDim2.fromOffset(64, 0),
+					disabled = scope == "game",
+					click = function()
+						local parent = Navigation.Parent(scope)
+						if parent then
+							navigate(parent, nil)
+						end
+					end,
+				}),
+				Crumbs = e(
+					"Frame",
+					{ Position = UDim2.fromOffset(100, 0), Size = UDim2.new(1, -100, 1, 0), BackgroundTransparency = 1 },
+					{
+						Path = e(Breadcrumbs, {
+							path = scope,
+							navigate = function(path: string)
+								navigate(path, nil)
+							end,
+						}),
+					}
+				),
+			}
+		),
 		List = e("Frame", {
-			Position = UDim2.fromOffset(0, 44),
-			Size = UDim2.new(1, 0, 1, -44 - footerHeight),
+			Position = UDim2.fromOffset(0, 80),
+			Size = UDim2.new(1, 0, 1, -80 - footerHeight),
 			BackgroundTransparency = 1,
 		}, {
-			Rows = e(UI.Scroll, nil, resultRows),
+			Rows = e(UI.Scroll, { key = scope .. ":" .. tostring(page) }, resultRows),
 		}),
 		Footer = e("Frame", {
 			Position = UDim2.new(0, 8, 1, -footerHeight),
@@ -462,9 +580,7 @@ return function(props: Props): React.ReactElement
 				Text = e(UI.Text, {
 					text = if loading
 						then "Searching…"
-						else `{total} instances` .. (if activeFilters > 0
-							then ` · {activeFilters} filters`
-							else ""),
+						else `{total} items` .. (if activeFilters > 0 then ` · {activeFilters} filters` else ""),
 					height = 20,
 					muted = true,
 				}),

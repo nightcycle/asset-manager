@@ -58,6 +58,17 @@ function Bridge.Handle(database: Database.Database, hooks: Hooks, raw: unknown):
 		if request.attributes ~= nil then
 			query.attributes = values(request.attributes)
 		end
+		for _, key in { "browse", "recursive" } do
+			local value = request[key]
+			if value ~= nil then
+				assert(type(value) == "boolean", "Browse and recursive must be booleans")
+				if key == "browse" then
+					query.browse = value
+				else
+					query.recursive = value
+				end
+			end
+		end
 		for _, key in { "offset", "limit" } do
 			local value = request[key]
 			if value ~= nil then
@@ -77,6 +88,7 @@ function Bridge.Handle(database: Database.Database, hooks: Hooks, raw: unknown):
 	end
 	if action == "preview" then
 		local instance = database.Resolve(text(request.path))
+		assert(database.Describe(instance).selectable, "Services are navigation folders, not preview targets")
 		hooks.preview(instance)
 		return {
 			record = database.Describe(instance),
@@ -94,7 +106,8 @@ function Bridge.Handle(database: Database.Database, hooks: Hooks, raw: unknown):
 				{ path = text(input.path), tags = strings(input.tags), attributes = values(input.attributes) }
 			local valid, message = Schema.ValidateAnnotation(schema, annotation)
 			assert(valid, message)
-			database.Resolve(annotation.path)
+			local target = database.Resolve(annotation.path)
+			assert(database.Describe(target).selectable, "Services are navigation folders, not annotation targets")
 			table.insert(annotations, annotation)
 		end
 		assert(#annotations > 0, "Empty proposal")

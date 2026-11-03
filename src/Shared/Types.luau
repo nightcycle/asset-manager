@@ -18,12 +18,18 @@ export type Query = {
 	attributes: { [string]: Value }?,
 	offset: number?,
 	limit: number?,
+	-- Browse treats containers as directories and never descends into asset internals.
+	browse: boolean?,
+	recursive: boolean?,
 }
 export type Record = {
 	path: string,
 	name: string,
 	fullName: string,
 	className: string,
+	sourceClassName: string,
+	kind: "folder" | "asset",
+	selectable: boolean,
 	tags: { string },
 	attributes: { [string]: Value },
 }
@@ -31,7 +37,7 @@ export type Annotation = { path: string, tags: { string }, attributes: { [string
 export type TagCount = { name: string, count: number }
 export type Catalog = { tags: { TagCount }, attributes: { [string]: { Value } } }
 export type Background = "Studio" | "Dark" | "Light"
-export type PreviewOptions = { background: Background, playing: boolean, mirrorLighting: boolean }
+export type PreviewOptions = { background: Background, playing: boolean, mirrorLighting: boolean, thumbnail: boolean? }
 export type PreviewStatusKind = "info" | "loading" | "error"
 export type PreviewContext = {
 	host: Frame,

@@ -1,5 +1,6 @@
 --!strict
 local Selection = {}
+local Hierarchy = require(script.Parent.Parent.Shared.Hierarchy)
 
 -- Only organizational containers expand; a Model/Tool/Accessory remains one asset.
 -- Return the visited containers so the UI can watch their immediate child lists.
@@ -13,11 +14,11 @@ function Selection.Expand(selected: { Instance }): ({ Instance }, { Instance })
 	end
 	while #stack > 0 do
 		local instance = table.remove(stack) :: Instance
-		if visited[instance] then
+		if visited[instance] or Hierarchy.IsExcluded(instance) then
 			continue
 		end
 		visited[instance] = true
-		if instance:IsA("Folder") or instance:IsA("Configuration") then
+		if Hierarchy.IsFolder(instance) then
 			table.insert(containers, instance)
 			local children = instance:GetChildren()
 			for index = #children, 1, -1 do

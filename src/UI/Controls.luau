@@ -2,6 +2,7 @@
 local Packages = script.Parent.Parent.Parent.Packages
 local React = require(Packages.React)
 local Studio = require(Packages.StudioComponents)
+local Icons = require(script.Parent.Icons)
 local e = React.createElement
 local Controls = {}
 export type Children = { [string]: React.ReactNode }
@@ -185,9 +186,9 @@ function Controls.Scroll(props: { children: React.ReactNode }): React.ReactEleme
 end
 function Controls.Pager(props: { page: number, pages: number, change: (number) -> () }): React.ReactElement
 	return e(Controls.Row, nil, {
-		Previous = e(Controls.Button, {
-			text = "‹",
-			width = 38,
+		Previous = e(Icons.Button, {
+			name = "chevron_left",
+			size = UDim2.fromOffset(38, 28),
 			order = 1,
 			disabled = props.page <= 1,
 			click = function()
@@ -197,9 +198,9 @@ function Controls.Pager(props: { page: number, pages: number, change: (number) -
 		Count = e("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(120, 28), LayoutOrder = 2 }, {
 			Label = e(Controls.Text, { text = `Page {props.page} / {props.pages}` }),
 		}),
-		Next = e(Controls.Button, {
-			text = "›",
-			width = 38,
+		Next = e(Icons.Button, {
+			name = "chevron_right",
+			size = UDim2.fromOffset(38, 28),
 			order = 3,
 			disabled = props.page >= props.pages,
 			click = function()

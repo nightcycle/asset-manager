@@ -16,6 +16,7 @@ return Story.Create("Full stack", { LightTheme = false, EmptySelection = false }
 			{ Position = UDim2.new(0.5, 4, 0, 0), Size = UDim2.new(0.5, -4, 1, 0), BackgroundTransparency = 1 },
 			{
 				App = React.createElement(Organizer, {
+					initialScope = "game/Assets",
 					database = fixture.database,
 					selection = shown,
 					onSelect = setSelection,

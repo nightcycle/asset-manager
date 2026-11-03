@@ -44,6 +44,24 @@ function Fixtures.new(): Fixture
 	fallback.Name = "UnsupportedClass"
 	fallback.Parent = assets
 	table.insert(selection, fallback)
+	local collections = Instance.new("Folder")
+	collections.Name, collections.Parent = "Collections", assets
+	local variants = Instance.new("Configuration")
+	variants.Name, variants.Parent = "Variants", assets
+	local emptyFolder = Instance.new("Folder")
+	emptyFolder.Name, emptyFolder.Parent = "Hidden empty folder", assets
+	local emptyConfiguration = Instance.new("Configuration")
+	emptyConfiguration.Name, emptyConfiguration.Parent = "Hidden empty configuration", emptyFolder
+	for index, container in { collections :: Instance, variants :: Instance } do
+		local clone = selection[index]:Clone()
+		assert(clone)
+		clone.Parent = container
+	end
+	local grouped = Instance.new("Model")
+	grouped.Name, grouped.Parent = "Grouped prop", assets
+	local groupedPart = selection[3]:Clone()
+	assert(groupedPart)
+	groupedPart.Parent = grouped
 	local schema: Types.Schema = {
 		version = 1,
 		tags = {
