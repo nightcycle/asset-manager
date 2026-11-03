@@ -143,6 +143,9 @@ The JSON response is `{ok=true,result=...}` or `{ok=false,error=...}`. Requests 
 | `schema` | No additional fields | Versioned definitions, descriptions, and bounds |
 | `query` | `scope`; optional `search`, `className`, `tags`, `attributes`, `offset`, `limit`, `browse`, `recursive` | `records`, total count, ambiguous-path count, scope `catalog` of tag counts and observed attribute values |
 | `preview` | `path` | Opens that asset in Organizer's selection drawer; returns its metadata |
+| `capture` | `path` | Stages the asset's renderer on a temporary, viewport-filling BillboardGui; returns metadata and a capture session (`id`, `status`, `renderer`, `message`, viewport dimensions, `expiresIn`) |
+| `captureStatus` | `id` | Returns `loading`, `ready`, `error`, `expired`, or `finished`, plus the current message and viewport dimensions |
+| `finishCapture` | `id` | Removes that session's temporary part, GUI, clones, connections, and renderer resources; safe to repeat for the same session |
 | `propose` | `annotations = [{path,tags,attributes}, ...]` | Validates and queues a batch for review without applying it |
 
 Queries default to recursive instance search, excluding service objects. Set `browse=true, recursive=false` for a direct-child directory listing; `browse=true, recursive=true` searches through nested directory containers without descending into files. Both browser modes omit completely empty directory branches. Records include `kind` (`folder` or `asset`), `selectable`, and `sourceClassName`; service navigation records use `className="Folder"` with `selectable=false`. CoreGui remains excluded in every mode.
@@ -158,7 +161,18 @@ For example, a proposal body is:
 }
 ```
 
-A vision-capable MCP client can read the schema, query candidate paths, request a preview, **capture the visible widget using a screenshot capability**, and propose classifications. Rendering is asynchronous, so capture after the preview finishes loading. The adapter itself returns metadata, not image bytes. Some Studio screenshot tools capture only the main 3D viewport; those cannot see dock widgets and require a separate desktop/widget capture tool. This screenshot-dependent vision workflow has not been verified end-to-end here.
+A vision-capable MCP client can read the schema, query candidate paths, capture a preview, and propose classifications. `preview` opens the dock widget; for Studio MCP's viewport-only screenshot tool, use this sequence:
+
+1. Invoke `{action="capture", path="game/..."}` and save `result.capture.id`.
+2. Invoke `{action="captureStatus", id=id}` until `result.status` is `ready`. Stop on `error`, `expired`, or `finished`; `message` explains loading failures. Loading includes renderer setup, asset preloading, and layout settling.
+3. Call Studio MCP `screen_capture` with the same Studio ID and a capture ID, **without camera position/look-at overrides**.
+4. Always invoke `{action="finishCapture", id=id}` in the MCP client's `finally`/cleanup path, including when the screenshot fails.
+
+The screenshot tool returns the image; the plugin action itself returns JSON metadata. The plugin cannot invoke the external MCP screenshot tool, so staging and cleanup are separate actions. Only one capture can be active per bridge. Sessions expire after 120 seconds from creation and also clean up when the bridge/widget closes, its endpoint is destroyed, or the edit session/camera/source is lost. Unknown or stale IDs cannot remove a newer session. The latest completed session remains queryable until another capture starts.
+
+Capture reuses the class-specific preview renderer with a dark background, Fit framing, paused playback, and muted audio. A non-Archivable, non-collidable part follows the camera without modifying it. Its width and height match the camera frustum at the capture distance; the BillboardGui uses those stud dimensions and tracks viewport/FOV changes. The GUI is parented to CoreGui with the part as its `Adornee`, since parenting directly under the part can leave ViewportFrames blank. `AlwaysOnTop=false` keeps it in the world render pass captured by Studio MCP. All temporary objects are excluded from Organizer queries. World occlusion and scene post-processing can affect this GUI; existing preview-renderer limitations still apply.
+
+The BillboardGui → Studio MCP screenshot → cleanup flow was verified in Studio with an HD birch tree. Engine-only regression checks are in `tests/studio/Capture.spec.luau`; run that module in edit mode alongside the core/preview tests. It checks viewport coverage across camera FOV modes and cleanup after failure, timeout, shutdown, and stale-ID requests.
 
 Review lists every proposed tag and value before **Apply proposals**. It revalidates against the latest schema, verifies the same instances still occupy the proposed paths, and applies one undoable batch. Dismiss clears the batch. Only one batch can be pending. There is no arbitrary-code or direct-apply action in the adapter.
 

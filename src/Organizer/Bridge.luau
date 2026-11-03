@@ -3,6 +3,7 @@ local HttpService = game:GetService("HttpService")
 local Types = require(script.Parent.Parent.Shared.Types)
 local Schema = require(script.Parent.Parent.Shared.Schema)
 local Database = require(script.Parent.Database)
+local Capture = require(script.Parent.Capture)
 local Bridge = {}
 export type Hooks = { preview: (Instance) -> (), propose: ({ Types.Annotation }) -> () }
 
@@ -38,9 +39,25 @@ local function values(raw: unknown): { [string]: Types.Value }
 	return result
 end
 
-function Bridge.Handle(database: Database.Database, hooks: Hooks, raw: unknown): unknown
+function Bridge.Handle(database: Database.Database, hooks: Hooks, raw: unknown, capture: Capture.Controller?): unknown
 	local request = dictionary(raw)
 	local action = text(request.action)
+	if action == "capture" then
+		assert(capture, "Capture sessions require a running Studio bridge")
+		local instance = database.Resolve(text(request.path))
+		local record = database.Describe(instance)
+		assert(record.selectable, "Services are navigation folders, not capture targets")
+		return {
+			record = record,
+			capture = capture.Begin(instance),
+			nextStep = "Poll captureStatus with id until ready, call Studio screen_capture without camera overrides, then finishCapture with id in a finally block. The stage expires after 120 seconds.",
+		}
+	end
+	if action == "captureStatus" or action == "finishCapture" then
+		assert(capture, "Capture sessions require a running Studio bridge")
+		local id = text(request.id)
+		return if action == "captureStatus" then capture.Status(id) else capture.Finish(id)
+	end
 	if action == "schema" then
 		return database.ReadSchema()
 	end
@@ -117,7 +134,7 @@ function Bridge.Handle(database: Database.Database, hooks: Hooks, raw: unknown):
 			message = "Proposals queued for review in Organizer. No instance metadata has changed.",
 		}
 	end
-	error("Unknown action; supported: schema, query, preview, propose")
+	error("Unknown action; supported: schema, query, preview, capture, captureStatus, finishCapture, propose")
 end
 
 function Bridge.Start(database: Database.Database, hooks: Hooks, parent: Instance): () -> ()
@@ -125,11 +142,13 @@ function Bridge.Start(database: Database.Database, hooks: Hooks, parent: Instanc
 	local endpoint = Instance.new("BindableFunction")
 	endpoint.Name = "AssetToolsMCP"
 	endpoint.Archivable = false
+	local capture = Capture.new()
+	local destroying = endpoint.Destroying:Connect(capture.Destroy)
 	endpoint.OnInvoke = function(json: unknown): string
 		local ok, response = pcall(function(): unknown
 			assert(type(json) == "string" and #json <= 262144, "Expected JSON of at most 256 KiB")
 			local encoded = json
-			return Bridge.Handle(database, hooks, HttpService:JSONDecode(encoded))
+			return Bridge.Handle(database, hooks, HttpService:JSONDecode(encoded), capture)
 		end)
 		return HttpService:JSONEncode(
 			if ok then { ok = true, result = response } else { ok = false, error = tostring(response) }
@@ -137,6 +156,8 @@ function Bridge.Start(database: Database.Database, hooks: Hooks, parent: Instanc
 	end
 	endpoint.Parent = parent
 	return function()
+		capture.Destroy()
+		destroying:Disconnect()
 		endpoint:Destroy()
 	end
 end

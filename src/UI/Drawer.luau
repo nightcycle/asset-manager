@@ -10,13 +10,20 @@ local OUTSIDE_GAP = 12
 export type Props = { title: string, close: () -> (), children: React.ReactNode }
 return function(props: Props): React.ReactElement
 	local theme = Studio.useTheme()
-	return e("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 20 }, {
+	return e("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		-- Sink input across the whole widget while the drawer is open.
+		Active = true,
+		ZIndex = 20,
+	}, {
 		Scrim = e("TextButton", {
 			-- Only the exposed area dismisses the drawer; never overlap its controls.
 			Size = UDim2.new(1, -PANEL_WIDTH, 1, 0),
 			Text = "",
 			BackgroundColor3 = Color3.new(),
 			BackgroundTransparency = 0.5,
+			Active = true,
 			AutoButtonColor = false,
 			BorderSizePixel = 0,
 			[React.Event.Activated] = props.close,

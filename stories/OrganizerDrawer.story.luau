@@ -4,10 +4,11 @@ local App = require(script.Parent.Parent.Source.Organizer.App)
 local Story = require(script.Parent.Story)
 return Story.Create(
 	"Organizer drawer",
-	{ LightTheme = false, EditMetadata = false, EditSchema = false, Narrow = false },
+	{ LightTheme = false, EditMetadata = false, EditSchema = false, Settings = false, Narrow = false },
 	function(fixture, props)
-		local section = if props.controls.EditSchema == true
-			then "Schema"
+		local section = if props.controls.Settings == true
+			then "Settings"
+			elseif props.controls.EditSchema == true then "Schema"
 			elseif props.controls.EditMetadata == true then "Selection"
 			else "Filters"
 		local selection, setSelection = React.useState({ fixture.selection[1] })
