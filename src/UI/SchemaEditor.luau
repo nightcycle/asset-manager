@@ -3,8 +3,9 @@ local React = require(script.Parent.Parent.Parent.Packages.React)
 local UI = require(script.Parent.Controls)
 local Types = require(script.Parent.Parent.Shared.Types)
 local Schema = require(script.Parent.Parent.Shared.Schema)
+local Catalog = require(script.Parent.Parent.Organizer.Catalog)
 local e = React.createElement
-export type Props = { schema: Types.Schema, save: (Types.Schema) -> (), report: (string) -> () }
+export type Props = { schema: Types.Schema, save: (Types.Schema) -> (), report: (string) -> (), catalog: Types.Catalog? }
 return function(props: Props): React.ReactElement
 	local kind, setKind = React.useState("tag")
 	local name, setName = React.useState("")
@@ -12,6 +13,14 @@ return function(props: Props): React.ReactElement
 	local minimum, setMinimum = React.useState("0")
 	local maximum, setMaximum = React.useState("1")
 	local choices, setChoices = React.useState("")
+	local catalog = props.catalog or Catalog.Empty()
+	local observedValues: { string } = {}
+	local observed: { Types.Value } = catalog.attributes[name] or {}
+	for _, value in observed do
+		if type(value) == "string" then
+			table.insert(observedValues, value)
+		end
+	end
 	local function save()
 		local schema: Types.Schema =
 			{ version = 1, tags = table.clone(props.schema.tags), attributes = table.clone(props.schema.attributes) }
@@ -92,23 +101,26 @@ return function(props: Props): React.ReactElement
 			wrapped = true,
 			order = 1,
 		}),
-		Kind = e(UI.Button, {
-			text = "Type: " .. kind .. " (click to change)",
+		Kind = e(UI.Dropdown, {
+			clearable = false,
+			items = UI.Choices({ "tag", "number", "enum", "boolean" }),
+			selected = kind,
 			order = 2,
-			click = function()
-				setKind(
-					if kind == "tag"
-						then "number"
-						elseif kind == "number" then "enum"
-						elseif kind == "enum" then "boolean"
-						else "tag"
-				)
+			change = function(value: string?)
+				if value then
+					setKind(value)
+				end
 			end,
 		}),
-		Name = e(
-			UI.Input,
-			{ text = name, change = setName, placeholder = "Name, e.g. Biome or Complexity", order = 3 }
-		),
+		Name = e(UI.Suggest, {
+			text = name,
+			change = setName,
+			placeholder = "New or existing name",
+			order = 3,
+			suggestions = if kind == "tag"
+				then Catalog.TagNames(catalog, props.schema)
+				else Catalog.AttributeNames(catalog, props.schema),
+		}),
 		Description = e(UI.Input, {
 			text = description,
 			change = setDescription,
@@ -126,6 +138,18 @@ return function(props: Props): React.ReactElement
 				UI.Input,
 				{ text = choices, change = setChoices, placeholder = "Allowed values, comma separated", order = 5 }
 			)
+			else nil,
+		ObservedChoices = if kind == "enum" and #observedValues > 0
+			then e(UI.Dropdown, {
+				items = UI.Choices(observedValues),
+				placeholder = "Add a value found in this scope…",
+				order = 6,
+				change = function(value: string?)
+					if value then
+						setChoices(if choices == "" then value else choices .. ", " .. value)
+					end
+				end,
+			})
 			else nil,
 		Bounds = e(UI.Text, {
 			text = if kind == "boolean"

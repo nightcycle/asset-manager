@@ -72,8 +72,8 @@ function Bridge.Handle(database: Database.Database, hooks: Hooks, raw: unknown):
 				end
 			end
 		end
-		local records, total, ambiguous = database.Query(query)
-		return { records = records, total = total, ambiguous = ambiguous }
+		local records, total, ambiguous, catalog = database.Query(query)
+		return { records = records, total = total, ambiguous = ambiguous, catalog = catalog }
 	end
 	if action == "preview" then
 		local instance = database.Resolve(text(request.path))

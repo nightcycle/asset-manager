@@ -5,9 +5,11 @@ local UI = require(script.Parent.Parent.Source.UI.Controls)
 local Story = require(script.Parent.Story)
 return Story.Create("Metadata editor", { LightTheme = false }, function(fixture)
 	local status, setStatus = React.useState("")
+	local _, _, _, catalog = fixture.database.Query({ scope = "game" })
 	return React.createElement(UI.Scroll, nil, {
 		Editor = React.createElement(Editor, {
 			schema = fixture.schema,
+			catalog = catalog,
 			database = fixture.database,
 			selection = { fixture.selection[1] },
 			report = setStatus,

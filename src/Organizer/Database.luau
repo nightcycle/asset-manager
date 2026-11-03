@@ -5,11 +5,12 @@ local Types = require(script.Parent.Parent.Shared.Types)
 local Schema = require(script.Parent.Parent.Shared.Schema)
 local Paths = require(script.Parent.Parent.Shared.Paths)
 local Query = require(script.Parent.Query)
+local Catalog = require(script.Parent.Catalog)
 export type Database = {
 	ReadSchema: () -> Types.Schema,
 	SaveSchema: (Types.Schema) -> (),
 	Describe: (Instance) -> Types.Record,
-	Query: (Types.Query, (() -> boolean)?) -> ({ Types.Record }, number, number),
+	Query: (Types.Query, (() -> boolean)?) -> ({ Types.Record }, number, number, Types.Catalog),
 	Apply: ({ Types.Annotation }, boolean?) -> (),
 	Resolve: (string) -> Instance,
 	Root: Instance,
@@ -18,9 +19,13 @@ local Database = {}
 local SCHEMA_NAME = "AssetToolsSchema"
 
 function Database.new(root: Instance, storage: Instance, recordChanges: boolean): Database
+	local function inCoreGui(instance: Instance): boolean
+		return instance:IsA("CoreGui") or instance:FindFirstAncestorOfClass("CoreGui") ~= nil
+	end
 	local function resolve(path: string): Instance
 		local instance, message = Paths.Resolve(path, root)
 		assert(instance, message)
+		assert(not inCoreGui(instance), "CoreGui instances are excluded from Organizer")
 		return instance
 	end
 	local function schemaValue(): StringValue?
@@ -82,6 +87,7 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 		}
 	end
 	local function describe(instance: Instance): Types.Record
+		assert(not inCoreGui(instance), "CoreGui instances are excluded from Organizer")
 		local path, message = Paths.Of(instance, root)
 		assert(path, message)
 		return describeAt(instance, path)
@@ -119,7 +125,12 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 			end)
 		end,
 		Query = function(query, cancelled)
-			local scope = resolve(query.scope)
+			local scope, scopeError = Paths.Resolve(query.scope, root)
+			assert(scope, scopeError)
+			if inCoreGui(scope) then
+				return {}, 0, 0, Catalog.Empty()
+			end
+			local catalog = Catalog.New()
 			local offset = math.max(0, math.floor(query.offset or 0))
 			local limit = math.clamp(math.floor(query.limit or 100), 1, 200)
 			local results: { Types.Record } = {}
@@ -130,12 +141,13 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 			local savedSchema = storage:FindFirstChild(SCHEMA_NAME)
 			while #stack > 0 do
 				if cancelled and cancelled() then
-					return {}, 0, 0
+					return {}, 0, 0, Catalog.Empty()
 				end
 				local entry = table.remove(stack) :: Entry
 				local instance, path = entry.instance, entry.path
 				if
-					instance == savedSchema
+					instance:IsA("CoreGui")
+					or instance == savedSchema
 					or (
 						instance.Name == "AssetToolsMCP"
 						and instance:IsA("BindableFunction")
@@ -161,6 +173,7 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 				end
 				if path then
 					local record = describeAt(instance, path)
+					Catalog.Add(catalog, record)
 					if Query.Matches(record, query) then
 						total += 1
 						if total > offset and #results < limit then
@@ -175,7 +188,7 @@ function Database.new(root: Instance, storage: Instance, recordChanges: boolean)
 					task.wait()
 				end
 			end
-			return results, total, ambiguous
+			return results, total, ambiguous, Catalog.Finish(catalog)
 		end,
 		Apply = function(annotations, removeTags)
 			assert(#annotations > 0 and #annotations <= 200, "Apply 1–200 annotations at a time")

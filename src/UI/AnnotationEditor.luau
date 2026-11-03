@@ -4,6 +4,8 @@ local UI = require(script.Parent.Controls)
 local Types = require(script.Parent.Parent.Shared.Types)
 local Schema = require(script.Parent.Parent.Shared.Schema)
 local Database = require(script.Parent.Parent.Organizer.Database)
+local Catalog = require(script.Parent.Parent.Organizer.Catalog)
+local TagPicker = require(script.Parent.TagPicker)
 local e = React.createElement
 export type Props = {
 	schema: Types.Schema,
@@ -11,18 +13,25 @@ export type Props = {
 	database: Database.Database,
 	report: (string) -> (),
 	changed: () -> (),
+	catalog: Types.Catalog?,
 }
 return function(props: Props): React.ReactElement
-	local tagText, setTagText = React.useState("")
+	local tags, setTags = React.useState({} :: { string })
 	local attributeName, setAttributeName = React.useState("")
 	local valueText, setValueText = React.useState("")
+	local catalog = props.catalog or Catalog.Empty()
 	local definition: Types.AttributeDefinition? = nil
 	for _, item in props.schema.attributes do
 		if item.name == attributeName then
 			definition = item
 		end
 	end
-	local hint = "Choose an attribute by its schema name."
+	local values: { string } = {}
+	for _, value in Catalog.Values(catalog, attributeName, definition) do
+		table.insert(values, tostring(value))
+	end
+	local hint =
+		"Choose tags or an attribute. Define descriptions and allowed values in Schema before applying existing unmanaged metadata."
 	if definition then
 		local bounds = if definition.kind == "number"
 			then `{definition.min}…{definition.max}`
@@ -32,10 +41,6 @@ return function(props: Props): React.ReactElement
 	end
 	local function apply(remove: boolean)
 		local ok, message = pcall(function(): string?
-			local tags: { string } = {}
-			for tag in tagText:gmatch("[^,]+") do
-				table.insert(tags, (tag:gsub("^%s*(.-)%s*$", "%1")))
-			end
 			local attributes: { [string]: Types.Value } = {}
 			if not remove and attributeName ~= "" then
 				assert(definition, "Unknown attribute; create it in Schema first")
@@ -62,14 +67,37 @@ return function(props: Props): React.ReactElement
 	return e(UI.Column, nil, {
 		Title = e(UI.Text, { text = `Edit metadata · {#props.selection} selected`, order = 1 }),
 		Tags = e(
-			UI.Input,
-			{ text = tagText, change = setTagText, placeholder = "Tag names, comma separated", order = 2 }
+			TagPicker,
+			{ choices = Catalog.TagNames(catalog, props.schema), selected = tags, change = setTags, order = 2 }
 		),
-		Attribute = e(
-			UI.Input,
-			{ text = attributeName, change = setAttributeName, placeholder = "Attribute name (optional)", order = 3 }
-		),
-		Value = e(UI.Input, { text = valueText, change = setValueText, placeholder = "Attribute value", order = 4 }),
+		Attribute = e(UI.Dropdown, {
+			items = UI.Choices(Catalog.AttributeNames(catalog, props.schema)),
+			selected = if attributeName ~= "" then attributeName else nil,
+			change = function(name: string?)
+				setAttributeName(name or "")
+				setValueText("")
+			end,
+			placeholder = "Attribute (optional)",
+			order = 3,
+		}),
+		Value = if attributeName == ""
+			then nil
+			elseif definition and definition.kind == "number" then e(UI.Suggest, {
+				text = valueText,
+				change = setValueText,
+				suggestions = values,
+				placeholder = "Attribute value",
+				order = 4,
+			})
+			else e(UI.Dropdown, {
+				items = UI.Choices(values),
+				selected = if valueText ~= "" then valueText else nil,
+				change = function(value: string?)
+					setValueText(value or "")
+				end,
+				placeholder = "Attribute value",
+				order = 4,
+			}),
 		Hint = e(UI.Text, { text = hint, height = 48, wrapped = true, order = 5 }),
 		Actions = e(UI.Row, { order = 6 }, {
 			Apply = e(UI.Button, {

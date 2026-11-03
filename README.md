@@ -83,20 +83,25 @@ Add a strict module under `src/Preview`, then register it in `Registry.luau`. A 
 
 ## Organizer
 
-1. Open **Schema** and create tags or attributes. Every definition requires a description.
+1. Open the **☰ drawer → Tag and attribute schema** and create tags or attributes. Every definition requires a description. Existing names from the current scope are offered in dropdowns; new definitions can still be typed.
 2. Numbers require finite inclusive minimum/maximum bounds; enums require an explicit list of allowed strings; booleans accept exactly `true` and `false`. Freeform string attributes are deliberately excluded.
-3. Open **Browse**, select a folder in Explorer, and choose **Scope to selection**, or enter its canonical path. Results display the instance's `GetFullName()`; search covers full names, classes, and paths. Full names are derived from the hierarchy, never stored as instance attributes. Tag filters require every listed tag. Attribute filtering uses typed equality.
-4. Click a result to select and preview it. Use the metadata editor to add/remove managed tags or set an attribute on the current Explorer selection, up to 200 targets per batch.
+3. Search in the header. Open **☰ → Filters and scope**, select a folder in Explorer, and choose **Scope to selection**, or enter its canonical path. Results display the instance's `GetFullName()`; search covers full names, classes, and paths. Full names are derived from the hierarchy, never stored as instance attributes.
+4. Toggle tag chips at the foot of the list, or choose tags and an attribute/value from the drawer dropdowns. Tag filters require every selected tag; attribute filtering preserves the value's type (`false`, `"false"`, `0`, and `"0"` are different values).
+5. Click a result to select it while keeping the list visible. Open **☰ → Selected instances** for its preview and metadata editor. Add/remove managed tags or set an attribute on the current Explorer selection, up to 200 targets per batch.
+
+The footer shows the 12 most populous tags in the current scope, sorted by instance count, plus any other active tag filters. Scroll the chip strip horizontally for more. Counts and dropdown suggestions include the whole scope before search, tag/attribute filters, and pagination. Filters can use existing metadata without a schema definition; edits still require described tags and bounded attributes. The drawer also contains schema editing, MCP controls, and proposal review.
+
+CoreGui and its entire subtree are excluded from results, counts, and suggestions, including explicit scopes inside CoreGui. Direct metadata/preview/edit requests against that subtree are rejected. A user-created Folder named `CoreGui` is unaffected.
 
 The schema is JSON in `ServerStorage.AssetToolsSchema` (StringValue, version 1), saved with the place. Values are native instance attributes; tags are native CollectionService tags. No external database is needed. Existing tags and attributes outside the edited fields are preserved. Schemas do not automatically migrate existing values when definitions change.
 
-Edits validate the full batch first, record a Studio undo operation, and roll back on write failure. Studio Undo/Redo refreshes the list. Use **Refresh** after changes made elsewhere, including Team Create changes. The query engine traverses the current hierarchy in sorted order and yields in batches; it does not maintain a stale index. The UI displays 50 results per page; the API allows up to 200.
+Edits validate the full batch first, record a Studio undo operation, and roll back on write failure. Studio Undo/Redo and opening the drawer refresh the list. Use **Refresh instances and suggestions** in the drawer after changes made elsewhere, including Team Create changes. The query engine traverses the current hierarchy in sorted order and yields in batches; it does not maintain a stale index. The UI displays 50 results per page; the API allows up to 200.
 
 Paths use `game/Service/Folder/Name`, with percent-escaped segments, rather than executable Luau expressions. Dots, slashes, percent signs, and Unicode names round-trip safely. Duplicate sibling names are rejected as ambiguous, and affected query entries are counted and skipped. Rename duplicate siblings before using them as query scopes or annotation targets. Renames/moves are reflected on the next query. Corrupt or newer schema versions are reported and never silently overwritten.
 
 ## Studio MCP integration
 
-Organizer includes an **opt-in adapter for the existing Studio MCP server**, not a second MCP server or an embedded vision model. Click **Enable Studio MCP bridge** while the Organizer widget is open. This creates a non-Archivable `BindableFunction` at `ServerStorage.AssetToolsMCP` and removes it when disabled/unloaded.
+Organizer includes an **opt-in adapter for the existing Studio MCP server**, not a second MCP server or an embedded vision model. Click **Enable Studio MCP bridge** under **☰ → Filters and scope** while the Organizer widget is open. This creates a non-Archivable `BindableFunction` at `ServerStorage.AssetToolsMCP` and removes it when disabled/unloaded.
 
 A client with Studio's `execute_luau` tool can invoke the adapter:
 
@@ -112,8 +117,8 @@ The JSON response is `{ok=true,result=...}` or `{ok=false,error=...}`. Requests 
 | Action | Input | Output / behavior |
 | --- | --- | --- |
 | `schema` | No additional fields | Versioned definitions, descriptions, and bounds |
-| `query` | `scope`; optional `search`, `className`, `tags`, `attributes`, `offset`, `limit` | `records`, total count, ambiguous-path count |
-| `preview` | `path` | Opens that asset in Organizer's preview view; returns its metadata |
+| `query` | `scope`; optional `search`, `className`, `tags`, `attributes`, `offset`, `limit` | `records`, total count, ambiguous-path count, scope `catalog` of tag counts and observed attribute values |
+| `preview` | `path` | Opens that asset in Organizer's selection drawer; returns its metadata |
 | `propose` | `annotations = [{path,tags,attributes}, ...]` | Validates and queues a batch for review without applying it |
 
 For example, a proposal body is:
@@ -133,7 +138,7 @@ Review lists every proposed tag and value before **Apply proposals**. It revalid
 
 ## UI Labs
 
-Stories include **Full stack**, **Previewer**, **Organizer**, **Preview card**, **Preview menu**, **Images, flipbooks, and R15**, **Schema editor**, **Metadata editor**, and **Core controls**. Every story has a light/dark theme control. Previewer controls cover Folder and Configuration selection, a single preview, and an empty selection. Full stack shares selection between both screens and includes enough assets to exercise pagination. Media controls accept your image and animation IDs. The fixture hierarchy is isolated from the actual place, and its edits do not use Studio's undo history.
+Stories include **Full stack**, **Previewer**, **Organizer**, **Organizer drawer**, **Popular tag chips**, **Preview card**, **Preview menu**, **Images, flipbooks, and R15**, **Schema editor**, **Metadata editor**, and **Core controls**. Every story has a light/dark theme control. Previewer controls cover Folder and Configuration selection, a single preview, and an empty selection. Organizer stories cover the list, filters, metadata and schema drawers, and dropdowns. Full stack shares selection between both screens and includes enough assets to exercise pagination. Media controls accept your image and animation IDs. The fixture hierarchy is isolated from the actual place, and its edits do not use Studio's undo history.
 
 Production Rojo projects exclude DevPackages, this project's stories/tests, and dependency-supplied story files. Artifact tests enforce that separation. Only the development project includes UI Labs.
 

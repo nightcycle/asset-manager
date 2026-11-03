@@ -28,6 +28,8 @@ export type Record = {
 	attributes: { [string]: Value },
 }
 export type Annotation = { path: string, tags: { string }, attributes: { [string]: Value } }
+export type TagCount = { name: string, count: number }
+export type Catalog = { tags: { TagCount }, attributes: { [string]: { Value } } }
 export type Background = "Studio" | "Dark" | "Light"
 export type PreviewOptions = { background: Background, playing: boolean, mirrorLighting: boolean }
 export type PreviewStatusKind = "info" | "loading" | "error"

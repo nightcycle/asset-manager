@@ -56,3 +56,29 @@ loadModule = function(module)
 end
 local run = loadModule(modules.Tests["Core.spec"])
 print(`Passed {run()} core assertions`)
+
+-- CoreGui cannot be constructed with Instance.new in Studio. Exercise its actual
+-- class and nested hierarchy using Lune's isolated deserialized DataModel.
+local database = loadModule(modules.Source.Organizer.Database).new(place, place:GetService("ServerStorage"), false)
+local coreGui = place:GetService("CoreGui")
+local hidden = roblox.Instance.new("Folder")
+hidden.Name, hidden.Parent = "OrganizerExcludedFixture", coreGui
+hidden:AddTag("CoreGuiOnlyTest")
+hidden:SetAttribute("CoreGuiOnlyAttribute", "hidden")
+local hiddenChild = roblox.Instance.new("Folder")
+hiddenChild.Name, hiddenChild.Parent = "Child", hidden
+hiddenChild:AddTag("CoreGuiOnlyTest")
+local _, count, _, catalog = database.Query({ scope = "game", tags = { "CoreGuiOnlyTest" } })
+assert(
+	count == 0 and catalog.attributes.CoreGuiOnlyAttribute == nil,
+	"CoreGui leaked into query results or suggestions"
+)
+for _, tag in catalog.tags do
+	assert(tag.name ~= "CoreGuiOnlyTest", "CoreGui leaked into tag popularity")
+end
+local rows, scopedCount = database.Query({ scope = "game/CoreGui/OrganizerExcludedFixture" })
+assert(#rows == 0 and scopedCount == 0, "Explicit CoreGui scope was not excluded")
+assert(not pcall(database.Resolve, "game/CoreGui/OrganizerExcludedFixture/Child"), "Resolved excluded CoreGui child")
+assert(not pcall(database.Describe, hiddenChild), "Described excluded CoreGui child")
+hidden:Destroy()
+print("Verified CoreGui subtree exclusions and protected direct access")

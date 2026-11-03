@@ -5,6 +5,87 @@ local Studio = require(Packages.StudioComponents)
 local e = React.createElement
 local Controls = {}
 export type Children = { [string]: React.ReactNode }
+export type Choice = { id: string, label: string }
+-- StudioComponents keeps its DropdownItem type inside the component module.
+type DropdownIcon = {
+	Image: string,
+	Size: Vector2,
+	Transparency: number?,
+	Color: Color3?,
+	ResampleMode: Enum.ResamplerMode?,
+	RectOffset: Vector2?,
+	RectSize: Vector2?,
+	UseThemeColor: boolean?,
+}
+type DropdownItem = string | { Id: string, Text: string, Icon: DropdownIcon? }
+
+function Controls.Dropdown(props: {
+	items: { Choice },
+	selected: string?,
+	change: (string?) -> (),
+	placeholder: string?,
+	order: number?,
+	disabled: boolean?,
+	clearable: boolean?,
+}): React.ReactElement
+	local items: { DropdownItem } = {}
+	for _, choice in props.items do
+		table.insert(items, { Id = choice.id, Text = choice.label })
+	end
+	return e(Studio.Dropdown, {
+		Items = items,
+		SelectedItem = props.selected,
+		OnItemSelected = props.change,
+		DefaultText = props.placeholder or "Choose…",
+		ClearButton = props.clearable ~= false,
+		MaxVisibleRows = 8,
+		Size = UDim2.new(1, 0, 0, 28),
+		LayoutOrder = props.order,
+		Disabled = props.disabled,
+	})
+end
+function Controls.Choices(names: { string }): { Choice }
+	local result: { Choice } = {}
+	for _, name in names do
+		table.insert(result, { id = name, label = name })
+	end
+	return result
+end
+function Controls.Suggest(props: {
+	text: string,
+	change: (string) -> (),
+	suggestions: { string },
+	placeholder: string?,
+	order: number?,
+}): React.ReactElement
+	return e("Frame", {
+		Size = UDim2.new(1, 0, 0, if #props.suggestions > 0 then 62 else 28),
+		BackgroundTransparency = 1,
+		LayoutOrder = props.order,
+	}, {
+		Input = e(Studio.TextInput, {
+			Text = props.text,
+			OnChanged = props.change,
+			PlaceholderText = props.placeholder,
+			ClearTextOnFocus = false,
+			Size = UDim2.new(1, 0, 0, 28),
+		}),
+		Choices = if #props.suggestions > 0
+			then e(Studio.Dropdown, {
+				Items = props.suggestions,
+				DefaultText = "Use an existing value…",
+				MaxVisibleRows = 8,
+				Position = UDim2.fromOffset(0, 34),
+				Size = UDim2.new(1, 0, 0, 28),
+				OnItemSelected = function(value: string?)
+					if value then
+						props.change(value)
+					end
+				end,
+			})
+			else nil,
+	})
+end
 
 function Controls.Text(
 	props: { text: string, height: number?, muted: boolean?, order: number?, wrapped: boolean? }

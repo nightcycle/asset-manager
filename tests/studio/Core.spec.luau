@@ -9,6 +9,7 @@ local Bridge = require(Source.Organizer.Bridge)
 local Registry = require(Source.Preview.Registry)
 local Cleanup = require(Source.Shared.Cleanup)
 local PreviewSelection = require(Source.Preview.Selection)
+local Catalog = require(Source.Organizer.Catalog)
 
 return function(): number
 	local count = 0
@@ -217,5 +218,54 @@ return function(): number
 	end)
 	check(table.concat(order, ",") == "2,1,3", "Cleanup is not idempotent/LIFO or leaked a late resource")
 	root:Destroy()
+	local catalogRoot = Instance.new("Folder")
+	local firstAsset, secondAsset, thirdAsset = Instance.new("Part"), Instance.new("Part"), Instance.new("Folder")
+	firstAsset.Name, firstAsset.Parent = "A", catalogRoot
+	secondAsset.Name, secondAsset.Parent = "B", catalogRoot
+	thirdAsset.Name, thirdAsset.Parent = "CoreGui", catalogRoot -- A user folder with this name is not the CoreGui service.
+	local catalogAssets: { Instance } = { firstAsset, secondAsset, thirdAsset }
+	for _, asset in catalogAssets do
+		asset:AddTag("Popular")
+	end
+	firstAsset:AddTag("Rare")
+	firstAsset:SetAttribute("Mixed", false)
+	secondAsset:SetAttribute("Mixed", "false")
+	firstAsset:SetAttribute("Score", 0)
+	secondAsset:SetAttribute("Score", 2)
+	thirdAsset:SetAttribute("Score", 2)
+	local catalogDatabase = Database.new(catalogRoot, catalogRoot, false)
+	local noRows, noCount, _, catalog = catalogDatabase.Query({ scope = "game", search = "NoMatches", limit = 1 })
+	check(
+		#noRows == 0 and noCount == 0 and catalog.tags[1].name == "Popular" and catalog.tags[1].count == 3,
+		"Tag popularity depends on active search"
+	)
+	check(catalog.tags[2].name == "Rare" and catalog.tags[2].count == 1, "Tag counts are not sorted by population")
+	check(
+		#catalog.attributes.Score == 2 and catalog.attributes.Score[1] == 0,
+		"Observed numeric values lost zero or were not deduplicated"
+	)
+	check(
+		#catalog.attributes.Mixed == 2 and Catalog.ValueId(false) ~= Catalog.ValueId("false"),
+		"Typed attribute values collided"
+	)
+	local falseRows, falseCount =
+		catalogDatabase.Query({ scope = "game", attributes = { Mixed = false } :: { [string]: Types.Value } })
+	check(falseCount == 1 and falseRows[1].name == "A", "Boolean false filter failed")
+	local stringRows, stringCount =
+		catalogDatabase.Query({ scope = "game", attributes = { Mixed = "false" } :: { [string]: Types.Value } })
+	check(stringCount == 1 and stringRows[1].name == "B", "String value matched a boolean")
+	local _, _, _, pagedCatalog = catalogDatabase.Query({ scope = "game", offset = 2, limit = 1 })
+	check(pagedCatalog.tags[1].count == 3, "Catalog only counted a result page")
+	local _, _, _, scopedCatalog = catalogDatabase.Query({ scope = "game/A" })
+	check(
+		scopedCatalog.tags[1].count == 1 and #scopedCatalog.attributes.Score == 1,
+		"Catalog leaked outside the query scope"
+	)
+	local allowed =
+		Catalog.Values(catalog, "Score", { name = "Score", description = "Bounded", kind = "number", min = 1, max = 3 })
+	check(#allowed == 1 and allowed[1] == 2, "Editing suggestions included values outside schema bounds")
+	local namedRows, namedCount = catalogDatabase.Query({ scope = "game/CoreGui" })
+	check(namedCount == 1 and namedRows[1].name == "CoreGui", "Excluded a user folder solely because of its name")
+	catalogRoot:Destroy()
 	return count
 end
