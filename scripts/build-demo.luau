@@ -217,6 +217,21 @@ emitter.SpreadAngle = roblox.Vector2.new(35, 35)
 emitter.Color = roblox.ColorSequence.new(Color3.fromRGB(255, 210, 90), Color3.fromRGB(255, 80, 130))
 emitter.Size, emitter.Transparency = roblox.NumberSequence.new(0.7, 0), roblox.NumberSequence.new(0, 1)
 example(emitter, "FX")
+local beam = Instance.new("Beam")
+beam.Name, beam.Width0, beam.Width1, beam.Segments = "FX_Beam", 1.2, 0.2, 48
+beam.CurveSize0, beam.CurveSize1 = 4, 4
+beam.Color = roblox.ColorSequence.new(Color3.fromRGB(80, 210, 255), Color3.fromRGB(210, 100, 255))
+local beamStart, beamEnd = Instance.new("Attachment"), Instance.new("Attachment")
+beamStart.CFrame = CFrame.new(-4, 0, 0) * CFrame.Angles(0, 0, math.pi / 2)
+beamEnd.CFrame = CFrame.new(4, 0, 0) * CFrame.Angles(0, 0, -math.pi / 2)
+beamStart.Parent, beamEnd.Parent = beam, beam
+beam.Attachment0, beam.Attachment1 = beamStart, beamEnd
+example(beam, "FX")
+local trail = Instance.new("Trail")
+trail.Name, trail.Lifetime = "FX_Trail", 1.5
+trail.Color = roblox.ColorSequence.new(Color3.fromRGB(255, 210, 80), Color3.fromRGB(255, 70, 140))
+trail.WidthScale, trail.Transparency = roblox.NumberSequence.new(1, 0), roblox.NumberSequence.new(0, 1)
+example(trail, "FX")
 local animation = Instance.new("Animation")
 animation.Name, animation.AnimationId = "Animation_R15_Idle", "rbxassetid://507766388"
 example(animation, "Animation")
@@ -321,7 +336,7 @@ local descriptions: { [string]: string } = {
 	DemoAsset = "An asset supplied by this test place, suitable for preview and metadata exercises",
 	Geometry = "A three-dimensional prop or model",
 	Image = "A still image, decal, or sprite sheet",
-	FX = "An animated particle effect",
+	FX = "A particle, Beam, or Trail effect",
 	Animation = "An animation clip or pose for an R15 rig or bone stand-in",
 	Audio = "A sound asset",
 	GUI = "A user interface asset",

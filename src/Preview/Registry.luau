@@ -3,6 +3,7 @@ local Types = require(script.Parent.Parent.Shared.Types)
 local World = require(script.Parent.World)
 local Image = require(script.Parent.Image)
 local Particles = require(script.Parent.Particles)
+local Ribbons = require(script.Parent.Ribbons)
 local Gui = require(script.Parent.Gui)
 local Animation = require(script.Parent.Animation)
 local Audio = require(script.Parent.Audio)
@@ -56,6 +57,22 @@ Registry.Register({
 		return i:IsA("ParticleEmitter")
 	end,
 	mount = Particles.Mount,
+})
+Registry.Register({
+	id = "beam",
+	label = "Beam FX",
+	supports = function(i)
+		return i:IsA("Beam")
+	end,
+	mount = Ribbons.Mount,
+})
+Registry.Register({
+	id = "trail",
+	label = "Trail FX",
+	supports = function(i)
+		return i:IsA("Trail")
+	end,
+	mount = Ribbons.Mount,
 })
 Registry.Register({
 	id = "surface",

@@ -52,6 +52,7 @@ end
 assert(partCount == originalParts, "Gallery must represent every library part exactly once")
 local examples = storage:FindFirstChild("PreviewExamples")
 assert(examples and #examples:GetChildren() == manifest.exampleCount, "Missing media fixtures")
+assert(examples:FindFirstChildWhichIsA("Beam") and examples:FindFirstChildWhichIsA("Trail"), "Missing ribbon fixtures")
 local schema = serverStorage:FindFirstChild("AssetToolsSchema")
 assert(schema and schema:IsA("StringValue"), "Missing organizer schema")
 local decoded: { version: number, tags: { unknown }, attributes: { unknown } } = serde.decode("json", schema.Value)

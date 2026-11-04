@@ -58,6 +58,8 @@ local run = loadModule(modules.Tests["Core.spec"])
 print(`Passed {run()} core assertions`)
 local runPreview = loadModule(modules.Tests["Preview.spec"])
 print(`Passed {runPreview()} preview assertions`)
+local runRibbons = loadModule(modules.Tests["Ribbons.spec"])
+print(`Passed {runRibbons()} ribbon assertions`)
 
 -- CoreGui cannot be constructed with Instance.new in Studio. Exercise its actual
 -- class and nested hierarchy using Lune's isolated deserialized DataModel.

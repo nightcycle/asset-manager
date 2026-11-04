@@ -57,9 +57,13 @@ Enable each plugin from the **Asset Tools** toolbar. Their stable widget IDs and
 | SurfaceAppearance, Decal, Texture | Studio's built-in preview mesh, preserving PBR maps, tint, transparency, and texture tiling |
 | Images with flipbook metadata | Animated sprite-sheet frames |
 | ParticleEmitter | Animated 2D approximation with color/size/transparency sequences, velocity, acceleration, drag, rotation, and standard flipbook layouts |
+| Beam | 2D ribbon approximation with attachment-based cubic curves, endpoint widths, color/transparency sequences, and scrolling textures |
+| Trail | Animated 2D ribbon on a looping sample path, with attachment spacing, lifetime, width/color/transparency sequences, and textures |
 | GuiObject or LayerCollector, including ImageLabel/ImageButton | GUI clone with child hierarchy preserved; root Visible/Enabled is forced true; scripts are removed |
 | Sound | Continuous silent loudness visualization, exclusive audible playback, and elapsed/total track time |
 | Other classes | Broken-image placeholder when directly selected |
+
+Beam and Trail previews show the effect even when its source `Enabled` is false, without changing the source. Missing attachments use sample endpoints/spacing; Beams read existing attachment and Bone frames live. Trails use circular sample motion with up to four seconds of history, honoring `MinLength` and `MaxLength`. Texture Wrap/Static/Stretch, `TextureLength`, and Beam `TextureSpeed` are approximated with up to 32 texture repetitions and 64 path segments per tile. Play/pause freezes motion and texture scrolling, including in thumbnails. These are flat, camera-facing previews; lighting, additive blending, `FaceCamera`, and depth offsets are not simulated. Select the Beam or Trail itself to preview it; geometry previews do not composite embedded effects.
 
 The interface follows Studio's theme live through StudioComponents. Previewer fills the widget with previews and shows pagination only when there are multiple pages. Hover the viewer to reveal the top-right **⋯** button for a dismissible options drawer: **Studio**, **Dark**, or **Light** backgrounds, **Fit/Fill**, autoplay, page limits, and place lighting. Fit shows the whole asset; Fill enlarges it to cover the preview and crops overflow. GUI canvases retain their proportions, image sheets use fit/crop, and 3D previews adjust camera framing. Changing Fit/Fill preserves playback. Every page, including the last, uses complete rows without empty slots. The layout chooses the closest-to-square cells among grids that fit the visible count exactly; rectangular cells take priority over an incomplete row. Prime counts such as seven use one full row or column according to the panel proportions. Animated tiles have translucent play/pause icons over the content, visible on hover or while paused; audio controls stay visible. Tile headers and informational footers are hidden; loading and error messages overlay the preview when needed. Only the visible page mounts renderers. Selected-source edits are debounced; descendant property watching is capped at 1,000 nodes per tile. Larger assets can be refreshed by reselecting them.
 
@@ -180,6 +184,8 @@ Review lists every proposed tag and value before **Apply proposals**. It revalid
 
 **Explorer fitted pages** provides a 210-asset fixture and a configurable page count for resizing and density checks. **Plugin icons** previews both Asphalt compositions against either Studio theme.
 
+**Beams, trails, and particles** includes curved Beam and moving Trail previews with texture, curve, and lifetime controls. The demo place also includes `FX_Beam` and `FX_Trail` in `ReplicatedStorage.PreviewExamples`.
+
 Stories include **Full stack**, **Previewer**, **Organizer**, **Organizer drawer**, **Asset thumbnails**, **Material icons**, **Popular tag chips**, **Preview card**, **Preview menu**, **Images, audio, and R15**, **GUI mounting**, **Bone stand-in**, **Classic clothing**, **Schema editor**, **Metadata editor**, and **Core controls**. Every story has a light/dark theme control. Previewer controls cover Folder and Configuration selection, a single preview, and an empty selection. Organizer stories include List/Grid views, nested Folders/Configurations, a Model file, navigation, thumbnail visibility, filters, metadata/schema drawers, and dropdowns. Full stack shares selection between both screens. Media controls accept image, animation, and sound IDs and include a local animation clip. GUI mounting covers hidden roots, disabled screens, and Fit/Fill; Previewer includes tall/wide panel controls. Bone stand-in covers non-R15 motion and single Keyframes. Classic clothing accepts Shirt/Pants templates and a T-shirt image. The fixture hierarchy is isolated from the actual place, and its edits do not use Studio's undo history.
 
 Production Rojo projects exclude DevPackages, this project's stories/tests, and dependency-supplied story files. Artifact tests enforce that separation. Only the development project includes UI Labs.
@@ -214,6 +220,8 @@ Local checks cover strict typing of application code, stories, Studio tests, plu
 
 ```lua
 print(require(game.ReplicatedStorage.AssetTools.Tests["Core.spec"])())
+print(require(game.ReplicatedStorage.AssetTools.Tests["Ribbons.spec"])())
+print(require(game.ReplicatedStorage.AssetTools.Tests["RibbonsRuntime.spec"])())
 ```
 
-No Studio session was connected during implementation. Visual layout, docking restoration, native animation playback, permission prompts, and screenshot-driven classification need an in-Studio smoke test. Lune service adapters do not simulate Studio rendering or ChangeHistoryService.
+Beam/Trail validation includes 28 geometry/selection assertions in Lune and 24 engine-only assertions in Studio using detached GUI fixtures, covering pause/resume, resize/Fit/Fill, texture modes, source preservation, and teardown. The effects story provides visual smoke testing; the detached runtime tests do not verify rendered pixels. Lune service adapters do not simulate Studio rendering or ChangeHistoryService.

@@ -22,6 +22,8 @@ function Playback.HasControls(source: Instance): boolean
 		or source:IsA("Animation")
 		or source:IsA("AnimationClip")
 		or source:IsA("ParticleEmitter")
+		or source:IsA("Beam")
+		or source:IsA("Trail")
 		or source:GetAttribute("Preview_FlipbookColumns") ~= nil
 end
 return Playback

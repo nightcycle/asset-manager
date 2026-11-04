@@ -183,8 +183,14 @@ function World.Geometry(context: Types.PreviewContext)
 		error("No 3D parts inside this selection")
 	end
 	World.Mount(context, model)
-	if model:FindFirstChildWhichIsA("ParticleEmitter", true) then
-		context.report("Drag to orbit · scroll to zoom. Select an emitter for its animated FX preview.")
+	if
+		model:FindFirstChildWhichIsA("ParticleEmitter", true)
+		or model:FindFirstChildWhichIsA("Beam", true)
+		or model:FindFirstChildWhichIsA("Trail", true)
+	then
+		context.report(
+			"Drag to orbit · scroll to zoom. Select an emitter, Beam, or Trail for its animated FX preview."
+		)
 	else
 		context.report("Drag to orbit · scroll to zoom")
 	end

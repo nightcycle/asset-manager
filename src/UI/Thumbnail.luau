@@ -12,7 +12,7 @@ return function(props: Props): React.ReactElement
 	local icon: Icons.Name = if renderer == "sound"
 		then "volume_up"
 		elseif renderer == "animation" then "movie"
-		elseif renderer == "image" or renderer == "particles" then "image"
+		elseif renderer == "image" or renderer == "particles" or renderer == "beam" or renderer == "trail" then "image"
 		elseif renderer == "geometry" or renderer == "clothing" or renderer == "surface" then "view_in_ar"
 		else "insert_drive_file"
 	local fallback = if renderer == "fallback"
